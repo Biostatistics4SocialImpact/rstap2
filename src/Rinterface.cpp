@@ -51,7 +51,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
 
         int n ,s, j, vj;
         double p;
-        double epsilon = 1.0;
+        double epsilon = .15;
         double epsilon_bar = 1.0;
         double H_bar = 0;
         double gamma = 0.05;
@@ -64,12 +64,13 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
         STAP_Tree tree;
 
 
+        Rcpp::Rcout << " Beginning Sampling" << std::endl;
 
         for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
             Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
             Rcpp::Rcout << "-------------------------------------" << std::endl;
-            Rcpp::Rcout << "epsilon for this iteration is: " << epsilon << std::endl;
-            Rcpp::Rcout << "Theta init: " << 10.0 /( 1 + exp(-theta_init)) << std::endl;
+            //Rcpp::Rcout << "epsilon for this iteration is: " << epsilon << std::endl;
+            //Rcpp::Rcout << "Theta init: " << 10.0 /( 1 + exp(-theta_init)) << std::endl;
             bm = GaussianNoise_scalar(rng);
             tm = GaussianNoise_scalar(rng);
             u = stap_object.sample_u(beta_init,theta_init,bm,tm,rng);
@@ -88,7 +89,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
             s = 1;
             j = 0;
             while(s == 1){
-                Rcpp::Rcout << "Growing Tree with j = " << j << std::endl;
+                //Rcpp::Rcout << "Growing Tree with j = " << j << std::endl;
                 vj = coin_flip(rng) <= .5 ? 1: -1;
                 if(vj == -1){
                     tree.BuildTree(stap_object,beta_left,theta_left,beta_init,theta_init,bml,tml,bm,tm,u,vj,j,epsilon,rng);
@@ -105,6 +106,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                 }
                 if(tree.get_s_prime() == 1){
                     p = std::min(1.0, tree.get_n_prime() / n);
+                    Rcpp::Rcout << "p: " << p << std::endl;
                     if(coin_flip(rng) <= p){
                         Rcpp::Rcout << "Sample Accepted" << std::endl;
                         acceptance(iter_ix-1) = 1;
@@ -119,7 +121,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                 n = n + tree.get_n_prime();
                 s = (UTI_one >= 0.0 & UTI_two >= 0.0) ? tree.get_s_prime() : 0;
                 j++;
-                if(j > 15){
+                if(j > 11){
                     Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
@@ -135,8 +137,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
             beta_init = beta;
             theta_init = theta;
             max_treedepth(iter_ix-1) = j;
-            Rcpp::Rcout << "End of iteration: " << iter_ix << std::endl;
-            Rcpp::Rcout << "epsilon at end of this iteration is: " << epsilon << std::endl;
+            //Rcpp::Rcout << "End of iteration: " << iter_ix << std::endl;
+            //Rcpp::Rcout << "epsilon at end of this iteration is: " << epsilon << std::endl;
         }
 
     
@@ -145,4 +147,58 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                               Rcpp::Named("treedepth") = max_treedepth,
                               Rcpp::Named("epsilon") = epsilon );
    
+}
+
+// [[Rcpp::export]]
+Rcpp::List test_grads(Eigen::VectorXd &y,
+                          double beta, 
+                          double theta,
+                          Eigen::MatrixXd &distances,
+                          Eigen::MatrixXd &d_one,
+                          Eigen::MatrixXd &d_two,
+                          Eigen::MatrixXd &d_three,
+                          Eigen::VectorXd &theta_grid,
+                          Eigen::VectorXd &beta_grid,
+                          const double &adapt_delta,
+                          const int iter_max,
+                          const int warmup,
+                          const int seed) {
+
+        std::mt19937 rng;
+        rng = std::mt19937(seed);
+        double bm = 0.0;
+        double tm = 0.0;
+
+
+        STAP stap_object(distances,d_one,d_two,d_three,y);
+        double true_theta = -2.9439;
+        double true_beta = 1.2;
+        stap_object.calculate_gradient(true_beta,true_theta);
+        Eigen::VectorXd beta_one(theta_grid.size() * beta_grid.size());
+        Eigen::VectorXd theta_one(theta_grid.size() * beta_grid.size());
+        Eigen::VectorXd th_grad_grid(theta_grid.size() * beta_grid.size());
+        Eigen::VectorXd bt_grad_grid(theta_grid.size() * beta_grid.size());
+        Eigen::VectorXd energy_grid(theta_grid.size() * beta_grid.size());
+        int cntr = 0;
+        
+
+        for(int i = 0; i < theta_grid.size(); i++){
+            for(int j =0; j<beta_grid.size();j++){
+                beta_one(cntr) = beta_grid(j);
+                theta_one(cntr) = theta_grid(i);
+                stap_object.calculate_gradient(beta_grid(j),theta_grid(i));
+                energy_grid(cntr) = stap_object.calculate_total_energy(beta_grid(j),theta_grid(i),bm,tm);
+                th_grad_grid(cntr) = stap_object.get_theta_grad(); 
+                bt_grad_grid(cntr) = stap_object.get_beta_grad();
+                cntr ++ ;
+            }
+        }
+
+
+
+    return Rcpp::List::create(Rcpp::Named("beta_gradient") =  bt_grad_grid,
+                              Rcpp::Named("theta_gradient") = th_grad_grid,
+                              Rcpp::Named("beta_grid") = beta_one,
+                              Rcpp::Named("theta_grid") = theta_one,
+                              Rcpp::Named("energy") = energy_grid );
 }

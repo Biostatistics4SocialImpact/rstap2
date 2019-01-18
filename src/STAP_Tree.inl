@@ -7,7 +7,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
         std::mt19937 &rng){
 
     if( j == 0 ){
-        Rcpp::Rcout << "Base Case Reached" << std::endl;
+        //Rcpp::Rcout << "Base Case Reached" << std::endl;
         double total_energy_init = stap_object.calculate_total_energy(beta_init,theta_init,bmi,tmi);
         this->Leapfrog(stap_object,beta_proposed,theta_proposed,bmp,tmp,v*epsilon);
         double total_energy = stap_object.calculate_total_energy(beta_new,theta_new,bmn,tmn);
@@ -23,17 +23,17 @@ void STAP_Tree::BuildTree(STAP &stap_object,
         tmr = tmn;
         alpha_prime = std::min(1.0,exp(total_energy - total_energy_init));
         n_alpha = 1.0;
-        Rcpp::Rcout << "Base Case Terminated" << std::endl;
+        //Rcpp::Rcout << "Base Case Terminated" << std::endl;
     }else{
-        Rcpp::Rcout << "j is: " << j << std::endl;
-        Rcpp::Rcout << "Building subtree" << std::endl;
+        //Rcpp::Rcout << "j is: " << j << std::endl;
+        //Rcpp::Rcout << "Building subtree" << std::endl;
         STAP_Tree subtree;
         subtree.BuildTree(stap_object,beta_proposed,theta_proposed,beta_init,theta_init,bmp,tmp,bmi,tmi,u,v,j-1,epsilon,rng);
         if(subtree.get_s_prime() == 1){
             STAP_Tree subsubtree;
             if( v == -1 ){
-                Rcpp::Rcout << "j is: " << j << std::endl;
-                Rcpp::Rcout << "Building left subsubtree" << std::endl;
+                //Rcpp::Rcout << "j is: " << j << std::endl;
+                //Rcpp::Rcout << "Building left subsubtree" << std::endl;
                 subsubtree.BuildTree(stap_object,subtree.get_bl(),subtree.get_tl(),beta_init,theta_init,subtree.get_bml(),subtree.get_tml(),bmi,tmi,u,v,j-1,epsilon,rng);
                 bl = subsubtree.get_bl();
                 tl = subsubtree.get_tl();
@@ -43,10 +43,10 @@ void STAP_Tree::BuildTree(STAP &stap_object,
                 tml = subsubtree.get_tml();
                 bmr = subtree.get_bmr();
                 tmr = subtree.get_tmr();
-                Rcpp::Rcout << "left subsubtree completed" << std::endl;
+                //Rcpp::Rcout << "left subsubtree completed" << std::endl;
             }else{
-                Rcpp::Rcout << "j is: " << j << std::endl;
-                Rcpp::Rcout << "Building right subsubtree" << std::endl;
+                //Rcpp::Rcout << "j is: " << j << std::endl;
+                //Rcpp::Rcout << "Building right subsubtree" << std::endl;
                 subsubtree.BuildTree(stap_object,subtree.get_br(),subtree.get_tr(),beta_init,theta_init,subtree.get_bmr(),subtree.get_tmr(),bmi,tmi,u,v,j-1,epsilon,rng);
                 bl = subtree.get_bl();
                 tl = subtree.get_tl();
@@ -56,7 +56,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
                 tml = subtree.get_tml();
                 bmr = subsubtree.get_bmr();
                 tmr = subsubtree.get_tmr();
-                Rcpp::Rcout << "right subsubtree completed" << std::endl;
+                //Rcpp::Rcout << "right subsubtree completed" << std::endl;
             }
             double p = (subsubtree.get_n_prime() == 0.0 & subtree.get_n_prime() ==0.0) ? 0.0 : subsubtree.get_n_prime() / (subtree.get_n_prime() + subsubtree.get_n_prime());
             std::uniform_real_distribution<double> die(0.0,1.0);
@@ -73,7 +73,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
             double UTI_two = pow((br -bl)*bmr,2) + pow((tr - tl)*tmr ,2); 
             s_prime = (UTI_one >= 0.0 & UTI_two >= 0.0 ) ? subsubtree.get_s_prime() :0 ;
             n_prime = subtree.get_n_prime() + subsubtree.get_n_prime();
-            Rcpp::Rcout << " SubSubtree portion completed" << std::endl;
+            //Rcpp::Rcout << " SubSubtree portion completed" << std::endl;
         }else{
             s_prime = subtree.get_s_prime();
             n_prime = subtree.get_n_prime();
@@ -89,7 +89,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
             bml = subtree.get_bml();
             bmr = subtree.get_bmr();
             alpha_prime = subtree.get_alpha_prime();
-            Rcpp::Rcout << " Subtree portion completed" << std::endl;
+            //Rcpp::Rcout << " Subtree portion completed" << std::endl;
             }
     }
 }
@@ -97,23 +97,23 @@ void STAP_Tree::BuildTree(STAP &stap_object,
 
 void STAP_Tree::Leapfrog(STAP &stap_object,double &cur_beta, double &cur_theta, double bm, double tm, double epsilon){
 
-    Rcpp::Rcout << "Leapfrogging" << std::endl;
+    //Rcpp::Rcout << "Leapfrogging" << std::endl;
 
-    Rcpp::Rcout << "Beta_naught: " << cur_beta << std::endl;
-    Rcpp::Rcout << "Theta_naught: " << 10.0 /(1 + exp(- cur_theta)) << std::endl;
+    //Rcpp::Rcout << "Beta_naught: " << cur_beta << std::endl;
+    //Rcpp::Rcout << "Theta_naught: " << 10.0 /(1 + exp(- cur_theta)) << std::endl;
     stap_object.calculate_gradient(cur_beta,cur_theta);
     double beta_grad;
     beta_grad = stap_object.get_beta_grad();
-    Rcpp::Rcout << "Beta Grad: " << beta_grad << std::endl;
+    //Rcpp::Rcout << "Beta Grad: " << beta_grad << std::endl;
     double theta_grad;
     theta_grad = stap_object.get_theta_grad();
-    Rcpp::Rcout << "Theta Grad: " << theta_grad << std::endl;
+    //Rcpp::Rcout << "Theta Grad: " << theta_grad << std::endl;
     bmn = bm + epsilon * beta_grad / 2.0 ;
     tmn = tm + epsilon * theta_grad / 2.0;
     beta_new = cur_beta + epsilon * bmn; // full step
     theta_new = cur_theta + epsilon * tmn;
     Rcpp::Rcout << "Beta_new: " << beta_new << std::endl;
-    Rcpp::Rcout << "Theta_new: " << 10.0 /(1 + exp(- cur_theta)) << std::endl;
+    Rcpp::Rcout << "Theta_new: " << 10.0 /(1 + exp(- theta_new)) << std::endl;
     stap_object.calculate_gradient(beta_new,theta_new);
     theta_grad = stap_object.get_theta_grad();
     beta_grad = stap_object.get_beta_grad();

@@ -5,8 +5,7 @@ class STAP
 {
     private:
         Eigen::VectorXd X;
-        Eigen::VectorXd X_mean;
-        Eigen::VectorXd X_diff;
+        Eigen::VectorXd X_mean; Eigen::VectorXd X_diff;
         Eigen::VectorXd X_prime;
         Eigen::VectorXd X_mean_prime;
         Eigen::VectorXd X_prime_diff;
@@ -30,11 +29,11 @@ class STAP
 
         void calculate_X_mean( double &theta);
 
-        void calculate_X_prime(double &theta);
+        void calculate_X_prime(double &theta, double &cur_theta);
 
-        void calculate_X_mean_prime(double &theta);
+        void calculate_X_mean_prime(double &theta, double &cur_theta);
 
-        void calculate_X_prime_diff(double &theta);
+        void calculate_X_prime_diff(double &theta, double &cur_theta);
 
         void calculate_gradient(double &cur_beta, double &cur_theta);
 
@@ -42,9 +41,21 @@ class STAP
             return(X);
         };
 
-        Eigen::VectorXd get_X_diff() const;
+        Eigen::VectorXd get_X_diff() const{
+            return(X_diff);
+        }
 
-        Eigen::VectorXd get_X_mean() const;
+        Eigen::VectorXd get_X_mean() const{
+            return(X_mean);
+        }
+
+        Eigen::VectorXd get_X_prime() const{
+            return(X_prime);
+        }
+
+        Eigen::VectorXd get_Xp_diff() const{
+            return(X_prime_diff);
+        }
 
         double get_beta_grad() const{
             return(beta_grad);
