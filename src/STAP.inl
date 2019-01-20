@@ -15,10 +15,10 @@ double STAP::calculate_total_energy(double cur_beta,  double cur_theta, double &
     // likelihood normalizing constant 
     double transformed_theta = 10 / (1.0 + exp(-cur_theta));
     double out = 0;
-    out -= y.size() / 2.0 * log(M_PI * 2 * pow(sigma, 2)); 
+    out -= y.size() / 2.0 * log(M_PI * 2); 
 
     // likelihood kernel
-    out += - (pow((y - X_diff * cur_beta).array(),2) ).sum() * (1.0 / 2.0 * pow(sigma,2)); 
+    out += - (pow((y - X_diff * cur_beta).array(),2) ).sum() * .5; 
 
     // beta ~ N(0,3) prior
     out += - 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
@@ -27,7 +27,7 @@ double STAP::calculate_total_energy(double cur_beta,  double cur_theta, double &
     out +=  -log(transformed_theta) - .5 * log( 2.0 * M_PI) - .5 * pow(log(transformed_theta) - 1,2);
 
     // theta constraints jacobian adjustment 
-    out += (y.size()+1) * (-cur_theta  - 2 * log(1+exp(-cur_theta)));   
+    out +=  ( log(10.0) - cur_theta  - 2 * log(1+exp(-cur_theta)));   
 
     // Incorporate Kinetic Energy
 
@@ -68,24 +68,21 @@ void STAP::calculate_X_mean( double &theta){
 
 }
 
-Eigen::VectorXd create_X_prime(double &theta, Eigen::MatrixXd &distances){
-
-    return((exp( - distances.array() / theta) * distances.array() * pow(theta,-2)).matrix().rowwise().sum());
-}
-
 void STAP::calculate_X_prime(double &theta, double &cur_theta){ 
 
-    X_prime =  create_X_prime(theta,dists); 
-    X_prime = X_prime * (10 * exp(-cur_theta)) / pow((1 + exp(-cur_theta)),2); 
+    X_prime =  (dists.array() / 10.0 * exp( - dists.array() / theta - cur_theta)).rowwise().sum(); 
 }
 
 void STAP::calculate_X_mean_prime(double &theta,double &cur_theta){ 
 
     Eigen::VectorXd tmp(d_one.rows());
+    tmp = (d_one.array() / 10.0 * exp( - d_one.array() / theta - cur_theta)).rowwise().sum();
+    X_mean_prime = tmp;
+    tmp  = (d_two.array() / 10.0 * exp( - d_two.array() / theta - cur_theta)).rowwise().sum();
+    X_mean_prime = tmp + X_mean_prime;
+    tmp = (d_three.array() / 10.0 * exp( - d_three.array() / theta - cur_theta)).rowwise().sum();
+    X_mean_prime = (tmp + X_mean_prime) / 3.0;
 
-    X_mean_prime = create_X_prime(theta,d_one) + create_X_prime(theta,d_two) + create_X_prime(theta,d_three);
-    X_mean_prime = X_mean_prime * (1.0 / 3.0) * (10 * exp(-cur_theta)) / pow((1 + exp(-cur_theta)),2) ;
-    
 }
 
 void STAP::calculate_X_prime_diff(double &theta,double &cur_theta){
@@ -101,14 +98,13 @@ void STAP::calculate_gradient(double &cur_beta, double &cur_theta){
 
     double theta_transformed;
     theta_transformed =  10.0  / (1.0 + exp( - cur_theta));
+    this->calculate_X_mean(theta_transformed);
+    this->calculate_X_diff(theta_transformed);
     this->calculate_X_prime_diff(theta_transformed,cur_theta);
-    theta_grad = y.dot(X_prime_diff) * cur_beta - pow(cur_beta,2) * X_prime_diff.sum(); // likelihood  theta grad
+    theta_grad = (y - cur_beta * X_diff).dot(X_prime_diff); //likelihood theta grad  
     theta_grad = theta_grad - pow(theta_transformed,-1) *  (10 * exp(-cur_theta)) / pow((1 + exp(-cur_theta)),2); // log theta prior 
     theta_grad = theta_grad - (log(theta_transformed) -1)/theta_transformed *(10 * exp(-cur_theta)) / pow((1 + exp(-cur_theta)),2); // log theta prior
-    theta_grad = theta_grad + (y.size() + 1) * exp(-cur_theta) / (1 + exp(-cur_theta)) * (10 * exp(-cur_theta)) / pow((1 + exp(-cur_theta)),2); // jacobian factor part I
-    theta_grad += (y.size() + 1 * exp(-cur_theta)) / ( 1-  1 / ( 1 + exp(-cur_theta)) * pow((1 + exp(-cur_theta)),2)) * (10 * exp(-cur_theta)) / pow((1 + exp(-cur_theta)),2) ; // jacobian factor part II
-
+    theta_grad = theta_grad -  (exp(cur_theta) + 3) / (exp(cur_theta) + 1);  //Jacobian factor
     beta_grad = (y-cur_beta * X_diff).dot(X_diff) + 1.0/9.0 * cur_beta;
 
 };
-
