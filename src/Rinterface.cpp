@@ -23,10 +23,12 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                           Eigen::MatrixXd &d_two,
                           Eigen::MatrixXd &d_three,
                           const double &adapt_delta, const int iter_max,
+                          const double sd_beta,
+                          const double sd_theta,
                           const int warmup,
                           const int seed) {
 
-        Eigen::VectorXd acceptance(iter_max);
+        Eigen::VectorXi acceptance(iter_max);
         Eigen::VectorXd epsilons(iter_max);
         Eigen::VectorXd beta_out(iter_max); 
         beta_out = Eigen::VectorXd::Zero(iter_max);
@@ -51,27 +53,28 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
 
         int n ,s, j, vj;
         double p;
-        double epsilon = 1.0;
         double epsilon_bar = 1.0;
         double H_bar = 0;
         double gamma = 0.05;
         double t_naught = 10;
         double kappa = 0.75;
-        double mu = log(10*epsilon);
         double u;
         double UTI_one, UTI_two;
         STAP stap_object(distances,d_one,d_two,d_three,y);
+        bm = GaussianNoise_scalar(rng) * sd_beta;
+        tm = GaussianNoise_scalar(rng) * sd_theta;
+        double epsilon = stap_object.FindReasonableEpsilon(beta,theta,bm,tm,rng);
+        double mu = log(10*epsilon);
 
 
-        Rcpp::Rcout << " Beginning Sampling" << std::endl;
+        Rcpp::Rcout << "Beginning Sampling" << std::endl;
 
         for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
             if(iter_ix % 10 == 0){
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
             }
-            //Rcpp::Rcout << "epsilon for this iteration is: " << epsilon << std::endl;
-            //Rcpp::Rcout << "Theta init: " << 10.0 /( 1 + exp(-theta_init)) << std::endl;
+            Rcpp::Rcout << "epsilon for this iteration is: " << epsilon << std::endl;
             bm = GaussianNoise_scalar(rng);
             tm = GaussianNoise_scalar(rng);
             u = stap_object.sample_u(beta_init,theta_init,bm,tm,rng);
@@ -93,13 +96,17 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                 Rcpp::Rcout << "Growing Tree with j = " << j << std::endl;
                 vj = coin_flip(rng) <= .5 ? 1: -1;
                 if(vj == -1){
+                Rcpp::Rcout << "Growing Tree to the left " << j << std::endl;
                     tree.BuildTree(stap_object,beta_left,theta_left,beta_init,theta_init,bml,tml,bm,tm,u,vj,j,epsilon,rng);
+                    Rcpp::Rcout << "left branch at top: " << tree.get_bl() << std::endl;
                     beta_left = tree.get_bl();
                     bml = tree.get_bml();
                     theta_left = tree.get_tl();
                     tml = tree.get_tml();
                 }else{
+                Rcpp::Rcout << "Growing Tree to the right " << j << std::endl;
                     tree.BuildTree(stap_object,beta_right,theta_right,beta_init,theta_init,bmr,tmr,bm,tm,u,vj,j,epsilon,rng);
+                    Rcpp::Rcout << "right branch at top: " << tree.get_bl() << std::endl;
                     beta_right = tree.get_br();
                     bmr = tree.get_bmr();
                     theta_right = tree.get_tr();
@@ -108,6 +115,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                 if(tree.get_s_prime() == 1){
                     p = std::min(1.0, tree.get_n_prime() / n);
                     if(coin_flip(rng) <= p){
+                        Rcpp::Rcout << "sample accepted" << std::endl;
                         acceptance(iter_ix-1) = 1;
                         beta = tree.get_beta_new();
                         theta = tree.get_theta_new();
@@ -115,6 +123,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                         theta_out(iter_ix-1) = theta; 
                     }
                 }
+                beta_out(iter_ix-1) = tree.get_beta_new();
+                theta_out(iter_ix-1) = tree.get_theta_new();
                 UTI_one = pow((beta_right - beta_left)*bml,2) + pow((theta_right -theta_left)*tml,2);
                 UTI_two = pow((beta_right - beta_left)*bmr,2) + pow((theta_right - theta_left)*tmr,2);
                 n = n + tree.get_n_prime();
@@ -137,13 +147,14 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
             beta_init = beta;
             theta_init = theta;
             max_treedepth(iter_ix-1) = j;
-            //Rcpp::Rcout << "epsilon at end of this iteration is: " << epsilon << std::endl;
+            Rcpp::Rcout << "epsilon at end of this iteration is: " << epsilon << std::endl;
         }
 
     
     return Rcpp::List::create(Rcpp::Named("beta_samps") =  beta_out,
                               Rcpp::Named("theta_samps") = theta_out,
                               Rcpp::Named("treedepth") = max_treedepth,
+                              Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilonss") = epsilons,
                               Rcpp::Named("epsilon") = epsilon );
    

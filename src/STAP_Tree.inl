@@ -11,10 +11,11 @@ void STAP_Tree::BuildTree(STAP &stap_object,
         double total_energy_init = stap_object.calculate_total_energy(beta_init,theta_init,bmi,tmi);
         this->Leapfrog(stap_object,beta_proposed,theta_proposed,bmp,tmp,v*epsilon);
         double total_energy = stap_object.calculate_total_energy(beta_new,theta_new,bmn,tmn);
-        Rcpp::Rcout << "Energy Check-u-: " << u << std::endl;
-        Rcpp::Rcout << "Energy Check-energy " << exp(total_energy) << " " << exp(1000 + total_energy) << std::endl;
-        n_prime = u <= exp(total_energy)? 1: 0;
-        s_prime = u < exp(1000 + total_energy) ? 1 : 0;
+        Rcpp::Rcout << "Energy Check: u = " << u <<std::endl;
+        Rcpp::Rcout << "Energy Check: total energy = " << exp(total_energy) << std::endl;
+        n_prime = u <= exp(total_energy) ? 1: 0;
+        Rcpp::Rcout << "Energy Check: n = " << n_prime << std::endl;
+        s_prime = u < exp(1000 + total_energy) ? 1:0;
         bl = beta_new;
         tl = theta_new;
         br = beta_new;
@@ -99,10 +100,10 @@ void STAP_Tree::BuildTree(STAP &stap_object,
 
 void STAP_Tree::Leapfrog(STAP &stap_object,double &cur_beta, double &cur_theta, double bm, double tm, double epsilon){
 
-    //Rcpp::Rcout << "Leapfrogging" << std::endl;
+    Rcpp::Rcout << "Leapfrogging" << std::endl;
 
-    //Rcpp::Rcout << "Beta_naught: " << cur_beta << std::endl;
-    //Rcpp::Rcout << "Theta_naught: " << 10.0 /(1 + exp(- cur_theta)) << std::endl;
+    Rcpp::Rcout << "Beta_naught: " << cur_beta << std::endl;
+    Rcpp::Rcout << "Theta_naught: " << 10.0 /(1 + exp(- cur_theta)) << std::endl;
     stap_object.calculate_gradient(cur_beta,cur_theta);
     double beta_grad;
     beta_grad = stap_object.get_beta_grad();
@@ -115,7 +116,7 @@ void STAP_Tree::Leapfrog(STAP &stap_object,double &cur_beta, double &cur_theta, 
     beta_new = cur_beta + epsilon * bmn; // full step
     theta_new = cur_theta + epsilon * tmn;
     Rcpp::Rcout << "beta_new: " << beta_new << std::endl;
-    Rcpp::Rcout << "theta_new: " << theta_new << std::endl;
+    Rcpp::Rcout << "theta_new: " << 10.0 / (1 + exp(-theta_new)) << std::endl;
     stap_object.calculate_gradient(beta_new,theta_new);
     theta_grad = stap_object.get_theta_grad();
     beta_grad = stap_object.get_beta_grad();

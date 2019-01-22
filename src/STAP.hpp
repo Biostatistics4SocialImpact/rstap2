@@ -37,6 +37,8 @@ class STAP
 
         void calculate_gradient(double &cur_beta, double &cur_theta);
 
+        double FindReasonableEpsilon(double &cur_beta, double &cur_theta, double &bm, double &tm, std::mt19937 &rng);
+
         Eigen::VectorXd get_X() const{
             return(X);
         };
