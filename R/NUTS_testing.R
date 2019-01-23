@@ -101,7 +101,7 @@ beta_init <- rnorm(1)
 theta_init <- rnorm(1)
 
 
-Rcpp::sourceCpp("src/Rinterface.cpp")
+
 
 
 
@@ -151,7 +151,7 @@ get_energy <- function(y,dists,d_one,d_two,d_three,theta,beta){
 }
 
 
-optim(c(0,0),function(x) 0 - get_energy(y,dists,d_one,d_two,d_three,x[1],x[2]))
+optim(c(0,0),function(x) 0-get_energy(y,dists,d_one,d_two,d_three,x[1],x[2]))
 
 optim(c(5,5),function(x) 0 - get_energy(y,dists,d_one,d_two,d_three,x[1],x[2]))
 
@@ -273,6 +273,8 @@ Rrslts_stapreg %>% filter(beta>1,beta<1.3) %>%
 
 
 # Cpp - gradient testing  ---------------------------------------------------------
+Rcpp::sourceCpp("src/Rinterface.cpp")
+
 
 sink("garbage.txt")
 fit <- test_grads(y = y,
@@ -298,6 +300,8 @@ rslts %>% mutate(theta = round(10 / (1+exp(-theta)),2)) %>%
     xlab("Beta") + ylab("Log Posterior (unnormalized)") + 
     ggsave("~/Google Drive/Academic/UM-Biostatistics/PhD/Brisa Meetings/1_22_19/energy_beta_persp.png",
            width = 7, height = 5)
+
+
 
 rslts  %>% mutate(theta = 10/(1.0 + exp(-theta))) %>%  
     filter(beta>1,beta<=1.5,theta<=3) %>% mutate(beta = factor(beta)) %>% 
@@ -333,12 +337,19 @@ rslts %>% mutate(transformed_theta = 10/(1.0 + exp(-theta))) %>%
     geom_line() + theme_bw() + ggtitle("Theta gradient")
 
 rslts %>% filter(theta%in% c(-2.95,1.5)) %>%
-    ggplot(aes(x=beta,y=bg,color= factor(theta) )) + 
-    geom_line() + theme_bw() + ggtitle("beta gradient") + 
-    ggsave("~/Google Drive/Academic/UM-Biostatistics/PhD/Brisa Meetings/1_22_19/energy_theta_persp.png",
+    mutate(theta = factor(round(10/(1+exp(-theta)),2 ))) %>% 
+    ggplot(aes(x=beta,y=bg,color= theta )) + 
+    geom_line() + theme_bw() + ggtitle("beta gradient") +
+    xlab("Beta") + ylab("Beta Gradient") + 
+    ggsave("~/Google Drive/Academic/UM-Biostatistics/PhD/Brisa Meetings/1_22_19/grad_beta.png",
            width = 7, height = 5)
 
 
+
+
+# Stap_diffndiff testing --------------------------------------------------
+
+Rcpp::sourceCpp("src/Rinterface.cpp")
 Xdiff_init <- create_X_diff(dists,d_one,d_two,d_three,theta=10/(1+exp(-theta_init)))
 diag_1 <- as.numeric((y - beta_init*Xdiff_init ) %*% Xdiff_init)
 Xmp_init <- get_X_mean_prime(d_one,d_two,d_three,theta = theta_init)
@@ -352,8 +363,10 @@ sd_theta <- solve(hessian)[1,1]
 sd_beta <- solve(hessian)[2,2]
 covmat <- diag(c(sd_theta,sd_beta))
 
+set.seed(3421)
 beta_init2 <- runif(1,-2,2)
 theta_init2 <- runif(1,-2,0)
+tic()
 sink("stap_diffndiff2.txt")
 fit <- stap_diffndiff(y = y,
                       beta = beta_init2,
@@ -362,12 +375,13 @@ fit <- stap_diffndiff(y = y,
                       d_one = d_one ,
                       d_two = d_two,
                       d_three = d_three,
-                      adapt_delta = .85,
-                      warmup = 1E3, iter_max = 2E3,
-                      sd_beta = sd_beta,
-                      sd_theta = sd_theta,
+                      adapt_delta = .80,
+                      warmup = 50, iter_max = 100,
+                      sd_beta = 1,
+                      sd_theta = 1,
                       seed = 23 )
 sink()
+toc()
 
 data_frame(Theta = fit$theta_samps[1001:2E3]) %>% 
     mutate(Theta = 10 / (1 +exp(-Theta))) %>% 
