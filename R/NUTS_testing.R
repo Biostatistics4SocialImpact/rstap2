@@ -350,67 +350,161 @@ rslts %>% filter(theta%in% c(-2.95,1.5)) %>%
 # Stap_diffndiff testing --------------------------------------------------
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-Xdiff_init <- create_X_diff(dists,d_one,d_two,d_three,theta=10/(1+exp(-theta_init)))
-diag_1 <- as.numeric((y - beta_init*Xdiff_init ) %*% Xdiff_init)
-Xmp_init <- get_X_mean_prime(d_one,d_two,d_three,theta = theta_init)
-cov <- as.numeric(sum(Xmp_init*y - 2 *Xdiff_init))
-
-hessian <- numDeriv::hessian(function(x){ get_energy(y = y,dists = dists,d_one = d_one,
-                                         d_two = d_two,d_three = d_three,
-                                         theta = x[1],beta = x[2])},c(theta_init,beta_init))
-
-sd_theta <- solve(hessian)[1,1]
-sd_beta <- solve(hessian)[2,2]
-covmat <- diag(c(sd_theta,sd_beta))
-
-set.seed(3421)
-beta_init2 <- runif(1,-2,2)
-theta_init2 <- runif(1,-2,0)
+library(coda)
+library(tictoc)
+iter_max <- 2E3
+warmup <- 1E3
+beta_init2 <- runif(n = 1,-2,-2)
+theta_init2 <- runif(n = 1,-2,-2)
 tic()
-sink("stap_diffndiff2.txt")
-fit <- stap_diffndiff(y = y,
+fit1 <- stap_diffndiff(y = y,
                       beta = beta_init2,
                       theta = theta_init2,
                       distances = dists,
                       d_one = d_one ,
                       d_two = d_two,
                       d_three = d_three,
-                      adapt_delta = .80,
-                      warmup = 50, iter_max = 100,
+                      adapt_delta = .65,
+                      warmup = warmup, 
+                      iter_max = iter_max,
+                      max_treedepth = 10,
                       sd_beta = 1,
                       sd_theta = 1,
                       seed = 23 )
-sink()
+toc()
+beta_init2 <- runif(n = 1,-2,-2)
+theta_init2 <- runif(n = 1,-2,-2)
+tic()
+fit2 <- stap_diffndiff(y = y,
+                       beta = beta_init2,
+                       theta = theta_init2,
+                       distances = dists,
+                       d_one = d_one ,
+                       d_two = d_two,
+                       d_three = d_three,
+                       adapt_delta = .65,
+                       warmup = warmup, 
+                       iter_max = iter_max,
+                       max_treedepth = 10,
+                       sd_beta = 1,
+                       sd_theta = 1,
+                       seed = 23 )
 toc()
 
-data_frame(Theta = fit$theta_samps[1001:2E3]) %>% 
-    mutate(Theta = 10 / (1 +exp(-Theta))) %>% 
-    gather(everything(),key="Parameters",value="Samples") %>% 
-    ggplot(aes(x=Samples)) + geom_density() + facet_wrap(~Parameters) + 
-    theme_bw() +
-    ggtitle("`Samples` from Posterior") + 
-    theme(strip.background = element_blank()) + 
-    geom_vline(aes(xintercept = 0.5),linetype=2) + 
-    ggsave("~/Google Drive/Academic/UM-Biostatistics/PhD/Brisa Meetings/1_22_19/thetasamples.png",
-                                                 width = 7, height = 5)
+beta_init2 <- runif(n = 1,-2,-2)
+theta_init2 <- runif(n = 1,-2,-2)
+tic()
+fit3 <- stap_diffndiff(y = y,
+                       beta = beta_init2,
+                       theta = theta_init2,
+                       distances = dists,
+                       d_one = d_one ,
+                       d_two = d_two,
+                       d_three = d_three,
+                       adapt_delta = .65,
+                       warmup = warmup, 
+                       iter_max = iter_max,
+                       max_treedepth = 10,
+                       sd_beta = 1,
+                       sd_theta = 1,
+                       seed = 23 )
+toc()
 
 
-data_frame(Theta = fit$theta_samps[1001:2E3]) %>% 
-    mutate(Theta = 10 / (1 +exp(-Theta))) %>% 
-    gather(everything(),key="Parameters",value="Samples") %>% 
-    ggplot(aes(x=Samples)) + geom_density() + facet_wrap(~Parameters) + 
-    theme_bw() +
-    theme(strip.background = element_blank()) + 
-    geom_vline(aes(xintercept = 0.5),linetype=2) + xlim(0,1.5) + 
-    ggsave("~/Google Drive/Academic/UM-Biostatistics/PhD/Brisa Meetings/1_22_19/thetasamples.png",
-           width = 7, height = 5)
+
+beta_init2 <- runif(n = 1,-2,-2)
+theta_init2 <- runif(n = 1,-2,-2)
+tic()
+fit4 <- stap_diffndiff(y = y,
+                       beta = beta_init2,
+                       theta = theta_init2,
+                       distances = dists,
+                       d_one = d_one ,
+                       d_two = d_two,
+                       d_three = d_three,
+                       adapt_delta = .65,
+                       warmup = warmup, 
+                       iter_max = iter_max,
+                       max_treedepth = 10,
+                       sd_beta = 1,
+                       sd_theta = 1,
+                       seed = 23 )
+toc()
 
 
-data_frame(Beta = fit$beta_samps[1001:2E3]) %>% 
-    gather(everything(),key="Parameters",value="Samples") %>% 
-    ggplot(aes(x=Samples)) + geom_density() + facet_wrap(~Parameters) + 
-    theme_bw() +
-    theme(strip.background = element_blank()) + 
-    geom_vline(aes(xintercept = 1.2),linetype=2) + xlim(0,1.5) +
-    ggsave("~/Google Drive/Academic/UM-Biostatistics/PhD/Brisa Meetings/1_22_19/betasamples.png",
-           width = 7, height = 5)
+samples <- tibble(chain=1,
+       beta = fit1$beta_samps,
+       theta = fit1$theta_samps,
+       acceptance = fit1$acceptance) %>% mutate(ix = 1:n()) %>% 
+    rbind(.,
+          tibble(chain = 2,
+                 beta = fit2$beta_samps,
+                 theta = fit2$theta_samps,
+                 acceptance = fit2$acceptance) %>% mutate(ix = 1:n())) %>% 
+    rbind(.,
+          tibble(chain = 3,
+                   beta = fit3$beta_samps,
+                   theta = fit3$theta_samps,
+                   acceptance = fit3$acceptance) %>% mutate(ix = 1:n())) %>% 
+    rbind(.,
+          tibble(chain = 4, 
+                 beta = fit4$beta_samps,
+                 theta = fit4$theta_samps,
+                 acceptance = fit4$acceptance) %>% mutate(ix = 1:n()))
+
+
+
+
+final_samples <- samples %>% filter(ix>1000,acceptance==1)
+
+final_samples %>% filter(chain!=2,chain!=4) %>% 
+    gather(beta,theta,key="Parameters",value="Samples") %>% 
+    mutate(true_par = 0.5*(Parameters=="theta") + 1.2*(Parameters=="beta")) %>% 
+    ggplot(aes(x=Samples)) + geom_histogram() + theme_bw() + 
+    facet_wrap(~Parameters,scales = "free_x") + 
+    theme(strip.background = element_blank()) +
+    geom_vline(aes(xintercept=true_par),linetype=2) +
+    ggtitle("Sample Estimates") + 
+        ggsave("~/Google Drive/Academic/UM-Biostatistics/PhD/Brisa Meetings/1_29_19/causaldiffupdate/par_samples.png",
+               width =7, height = 5)
+
+theta1 <- mcmc(final_samples %>% filter(chain==1) %>% select(theta) %>% pull())
+theta2 <- mcmc(final_samples %>% filter(chain==2) %>% select(theta) %>% pull())
+theta3 <- mcmc(final_samples %>% filter(chain==3) %>% select(theta) %>% pull())
+theta4 <- mcmc(final_samples %>% filter(chain==4) %>% select(theta) %>% pull())
+
+ml <- mcmc.list(mcmc(theta1[1:771]),
+          theta3)
+beta1 <- mcmc(final_samples %>% filter(chain==1) %>% select(beta) %>% pull())
+mlb <- mcmc.list(mcmc(beta1[1:771]),
+             mcmc(final_samples %>% filter(chain==3) %>% select(beta) %>% pull()))
+
+summary(ml)
+summary(mlb)
+gelman.diag(ml)
+gelman.diag(mlb)
+effectiveSize(ml)
+effectiveSize(mlb)
+# Diagnostics -------------------------------------------------------------
+
+
+
+beta_trace <- fit$beta_tracel %>% as_data_frame() %>%
+    mutate(sample_id = 1:n()) %>% 
+    gather(contains("V"),key="step",value="position") %>% 
+    mutate(new_step = as.numeric(str_remove(step,"V")))
+
+theta_trace <- fit$theta_tracer %>% as_data_frame() %>% 
+    mutate(sample_id = 1:n()) %>% 
+    gather(contains("V"),key="step",value="theta_position") %>% 
+    mutate(new_step = as.numeric(str_remove(step,"V")))
+
+
+library(gganimate)
+p <- beta_trace %>% left_join(theta_trace,by=c("sample_id","new_step")) %>%
+    filter(sample_id %in% samp) %>% mutate(step = as.integer(new_step)) %>% 
+    ggplot(aes(x=theta_position,y=position)) + geom_line() + 
+    facet_wrap(~sample_id) + ggtitle('NUTS Step') + xlab("Theta") +
+    ylab("Beta") + transition_reveal(step) + theme_minimal()
+
+animate(p)

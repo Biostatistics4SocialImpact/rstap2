@@ -15,7 +15,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
         //Rcpp::Rcout << "Energy Check: total energy = " << total_energy << std::endl;
         n_prime = u <= total_energy ? 1: 0;
         //Rcpp::Rcout << "Energy Check: n = " << n_prime << std::endl;
-        s_prime = u < 1000 + total_energy ? 1:0;
+        s_prime = u < (1000 + total_energy) ? 1:0;
         bl = beta_new;
         tl = theta_new;
         br = beta_new;
@@ -61,7 +61,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
                 tmr = subsubtree.get_tmr();
                 //Rcpp::Rcout << "right subsubtree completed" << std::endl;
             }
-            double p = (subsubtree.get_n_prime() == 0.0 & subtree.get_n_prime() ==0.0) ? 0.0 : subsubtree.get_n_prime() / (subtree.get_n_prime() + subsubtree.get_n_prime());
+            double p = (subsubtree.get_n_prime() == 0.0 && subtree.get_n_prime() ==0.0) ? 0.0 : subsubtree.get_n_prime() / (subtree.get_n_prime() + subsubtree.get_n_prime());
             std::uniform_real_distribution<double> die(0.0,1.0);
             if(die(rng) <= p){
                 beta_new = subsubtree.get_beta_new();
@@ -72,8 +72,8 @@ void STAP_Tree::BuildTree(STAP &stap_object,
             }
             alpha_prime = subsubtree.get_alpha_prime() + subtree.get_alpha_prime();
             n_alpha = subtree.get_n_alpha() +  subsubtree.get_n_alpha();
-            double UTI_one = (pow((br -bl)*bml,2) + pow((tr - tl)*tml ,2) >=0 ); 
-            double UTI_two = (pow((br -bl)*bmr,2) + pow((tr - tl)*tmr ,2) >=0 ); 
+            double UTI_one = ( ( (br-bl)*bml + (tr-tl)*tml) >=0 );
+            double UTI_two = ( ( (br-bl)*bmr + (tr-tl)*tmr) >=0 );
             s_prime = (UTI_one && UTI_two ) ? subsubtree.get_s_prime() :0 ;
             n_prime = subtree.get_n_prime() + subsubtree.get_n_prime();
             //Rcpp::Rcout << " SubSubtree portion completed" << std::endl;

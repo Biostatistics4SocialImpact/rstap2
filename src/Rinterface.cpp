@@ -25,6 +25,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                           const double &adapt_delta, const int iter_max,
                           const double sd_beta,
                           const double sd_theta,
+                          const int max_treedepth,
                           const int warmup,
                           const int seed) {
 
@@ -35,7 +36,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
         beta_out = Eigen::VectorXd::Zero(iter_max);
         Eigen::VectorXd theta_out(iter_max);
         theta_out = Eigen::VectorXd::Zero(iter_max);
-        Eigen::VectorXd max_treedepth(iter_max);
+        Eigen::VectorXd treedepth(iter_max);
         std::mt19937 rng;
         rng = std::mt19937(seed);
         std::uniform_real_distribution<double> coin_flip(0.0,1.0);
@@ -57,7 +58,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
         double epsilon_bar = 1.0;
         double H_bar = 0.0;
         double gamma = 0.05;
-        double t_naught = 10;
+        double t_naught = 1;
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
@@ -75,7 +76,6 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
             }
-            Rcpp::Rcout << "epsilon for this iteration is: " << epsilon << std::endl;
             bm = GaussianNoise_scalar(rng);
             tm = GaussianNoise_scalar(rng);
             log_z = stap_object.sample_u(beta_init,theta_init,bm,tm,rng);
@@ -124,12 +124,12 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                         theta_out(iter_ix-1) = 10 / (1 + exp(-theta)) ; 
                     }
                 }
-                UTI_one = (pow((beta_right - beta_left)*bml,2) + pow((theta_right -theta_left)*tml,2) >=0);
-                UTI_two = (pow((beta_right - beta_left)*bmr,2) + pow((theta_right - theta_left)*tmr,2) >=0);
+                UTI_one = ( ( (beta_right - beta_left) * bmr + (theta_right - theta_left)*tmr) >=0 );
+                UTI_two = ( ( (beta_right - beta_left) * bml + (theta_right - theta_left)*tml) >=0 );
                 n = n + tree.get_n_prime();
                 s = (UTI_one && UTI_two) ? tree.get_s_prime() : 0;
                 j++;
-                if(j > 6 && beta_out(iter_ix-1) != 0.0){
+                if(j == max_treedepth && iter_ix > warmup){
                     Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
@@ -137,10 +137,6 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
             }
             if(iter_ix <= warmup){
                 H_bar = (1.0 - 1.0 / (iter_ix + t_naught)) * H_bar + (1.0 /(iter_ix + t_naught)) * (adapt_delta - tree.get_alpha_prime() / tree.get_n_alpha());
-                Rcpp::Rcout << "alpha_prime " << tree.get_alpha_prime() << std::endl;
-                Rcpp::Rcout << "n_alpha " << tree.get_n_alpha() << std::endl;
-                Rcpp::Rcout << "acceptance ratio" << tree.get_alpha_prime() / tree.get_n_alpha() << std::endl;
-                Rcpp::Rcout << "H_bar " << H_bar << std::endl;
                 epsilon = exp(mu - sqrt(iter_ix) / gamma * H_bar);
                 epsilon_bar = exp(pow(iter_ix,-kappa) * log(epsilon) + (1.0 - pow(iter_ix,-kappa)) * log(epsilon_bar));
             }
@@ -149,14 +145,13 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
             
             beta_init = beta;
             theta_init = theta;
-            max_treedepth(iter_ix-1) = j;
-            Rcpp::Rcout << "epsilon at end of this iteration is: " << epsilon << std::endl;
+            treedepth(iter_ix-1) = j;
         }
 
     
     return Rcpp::List::create(Rcpp::Named("beta_samps") =  beta_out,
                               Rcpp::Named("theta_samps") = theta_out,
-                              Rcpp::Named("treedepth") = max_treedepth,
+                              Rcpp::Named("treedepth") = treedepth,
                               Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilonss") = epsilons,
                               Rcpp::Named("epsilon") = epsilon );
