@@ -1,4 +1,4 @@
-STAP::STAP(Eigen::MatrixXd &input_dists, 
+STAP::STAP(Eigen::ArrayXXd &input_dists, 
            Eigen::MatrixXd &input_d_one, 
            Eigen::MatrixXd &input_d_two, 
            Eigen::MatrixXd &input_d_three, 

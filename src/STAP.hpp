@@ -11,7 +11,7 @@ class STAP
         Eigen::VectorXd X_prime_diff;
         double beta_grad;
         double theta_grad;
-        Eigen::MatrixXd dists;
+        Eigen::ArrayXXd dists;
         Eigen::MatrixXd d_one;
         Eigen::MatrixXd d_two;
         Eigen::MatrixXd d_three;
@@ -19,7 +19,7 @@ class STAP
         double sigma;
 
     public:
-        STAP(Eigen::MatrixXd &input_dists,
+        STAP(Eigen::ArrayXXd &input_dists,
                 Eigen::MatrixXd &input_d_one, 
                 Eigen::MatrixXd &input_d_two, 
                 Eigen::MatrixXd &input_d_three, 
