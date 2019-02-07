@@ -3,13 +3,15 @@ void STAP_Tree::BuildTree(STAP &stap_object,
         double beta_init, double theta_init, 
         double bmp, double tmp,
         double bmi, double tmi,
-        double u, int v, int j, double &epsilon, 
+        double u, int v, int j,
+        double &epsilon_beta, 
+        double &epsilon_theta,
         std::mt19937 &rng){
 
     if( j == 0 ){
         //Rcpp::Rcout << "Base Case Reached" << std::endl;
         double total_energy_init = stap_object.calculate_total_energy(beta_init,theta_init,bmi,tmi);
-        this->Leapfrog(stap_object,beta_proposed,theta_proposed,bmp,tmp,v*epsilon);
+        this->Leapfrog(stap_object,beta_proposed,theta_proposed,bmp,tmp,v*epsilon_theta,v*epsilon_beta);
         double total_energy = stap_object.calculate_total_energy(beta_new,theta_new,bmn,tmn);
         //Rcpp::Rcout << "Energy Check: u = " << u <<std::endl;
         //Rcpp::Rcout << "Energy Check: total energy = " << total_energy << std::endl;
@@ -31,13 +33,13 @@ void STAP_Tree::BuildTree(STAP &stap_object,
         //Rcpp::Rcout << "j is: " << j << std::endl;
         //Rcpp::Rcout << "Building subtree" << std::endl;
         STAP_Tree subtree;
-        subtree.BuildTree(stap_object,beta_proposed,theta_proposed,beta_init,theta_init,bmp,tmp,bmi,tmi,u,v,j-1,epsilon,rng);
+        subtree.BuildTree(stap_object,beta_proposed,theta_proposed,beta_init,theta_init,bmp,tmp,bmi,tmi,u,v,j-1,epsilon_theta,epsilon_beta,rng);
         if(subtree.get_s_prime() == 1){
             STAP_Tree subsubtree;
             if( v == -1 ){
                 //Rcpp::Rcout << "j is: " << j << std::endl;
                 //Rcpp::Rcout << "Building left subsubtree" << std::endl;
-                subsubtree.BuildTree(stap_object,subtree.get_bl(),subtree.get_tl(),beta_init,theta_init,subtree.get_bml(),subtree.get_tml(),bmi,tmi,u,v,j-1,epsilon,rng);
+                subsubtree.BuildTree(stap_object,subtree.get_bl(),subtree.get_tl(),beta_init,theta_init,subtree.get_bml(),subtree.get_tml(),bmi,tmi,u,v,j-1,epsilon_theta,epsilon_beta,rng);
                 bl = subsubtree.get_bl();
                 tl = subsubtree.get_tl();
                 br = subtree.get_br();
@@ -50,7 +52,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
             }else{
                 //Rcpp::Rcout << "j is: " << j << std::endl;
                 //Rcpp::Rcout << "Building right subsubtree" << std::endl;
-                subsubtree.BuildTree(stap_object,subtree.get_br(),subtree.get_tr(),beta_init,theta_init,subtree.get_bmr(),subtree.get_tmr(),bmi,tmi,u,v,j-1,epsilon,rng);
+                subsubtree.BuildTree(stap_object,subtree.get_br(),subtree.get_tr(),beta_init,theta_init,subtree.get_bmr(),subtree.get_tmr(),bmi,tmi,u,v,j-1,epsilon_theta,epsilon_beta,rng);
                 bl = subtree.get_bl();
                 tl = subtree.get_tl();
                 br = subsubtree.get_br();
@@ -98,7 +100,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
 }
 
 
-void STAP_Tree::Leapfrog(STAP &stap_object,double &cur_beta, double &cur_theta, double bm, double tm, double epsilon){
+void STAP_Tree::Leapfrog(STAP &stap_object,double &cur_beta, double &cur_theta, double bm, double tm, double epsilon_theta, double epsilon_beta){
 
     //Rcpp::Rcout << "Leapfrogging" << std::endl;
 
@@ -109,19 +111,19 @@ void STAP_Tree::Leapfrog(STAP &stap_object,double &cur_beta, double &cur_theta, 
     beta_grad = stap_object.get_beta_grad();
     double theta_grad;
     theta_grad = stap_object.get_theta_grad();
-    bmn = bm + epsilon * beta_grad / 2.0 ;
-    tmn = tm + epsilon * theta_grad / 2.0;
+    bmn = bm + epsilon_beta * beta_grad / 2.0 ;
+    tmn = tm + epsilon_theta * theta_grad / 2.0;
     //Rcpp::Rcout << "beta grad" << beta_grad << std::endl;
     //Rcpp::Rcout << "theta grad" << theta_grad << std::endl;
-    beta_new = cur_beta + epsilon * bmn; // full step
-    theta_new = cur_theta + epsilon * tmn;
+    beta_new = cur_beta + epsilon_beta * bmn; // full step
+    theta_new = cur_theta + epsilon_theta * tmn;
     //Rcpp::Rcout << "beta_new: " << beta_new << std::endl;
     //Rcpp::Rcout << "theta_new: " << 10.0 / (1 + exp(-theta_new)) << std::endl;
     stap_object.calculate_gradient(beta_new,theta_new);
     theta_grad = stap_object.get_theta_grad();
     beta_grad = stap_object.get_beta_grad();
-    bmn = bmn + epsilon * beta_grad / 2.0 ;
-    tmn = tmn + epsilon * theta_grad / 2.0;
+    bmn = bmn + epsilon_beta * beta_grad / 2.0 ;
+    tmn = tmn + epsilon_theta * theta_grad / 2.0;
 }
 
 const int STAP_Tree::get_s_prime() const{

@@ -1,4 +1,8 @@
-STAP::STAP(Eigen::MatrixXd input_dists, Eigen::MatrixXd input_d_one, Eigen::MatrixXd input_d_two, Eigen::MatrixXd input_d_three, Eigen::VectorXd input_y){
+STAP::STAP(Eigen::MatrixXd &input_dists, 
+           Eigen::MatrixXd &input_d_one, 
+           Eigen::MatrixXd &input_d_two, 
+           Eigen::MatrixXd &input_d_three, 
+           Eigen::VectorXd &input_y){
 
     dists = input_dists;
     d_one = input_d_one;

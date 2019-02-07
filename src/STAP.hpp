@@ -19,7 +19,11 @@ class STAP
         double sigma;
 
     public:
-        STAP(Eigen::MatrixXd dists,Eigen::MatrixXd d_one, Eigen::MatrixXd d_two, Eigen::MatrixXd d_three, Eigen::VectorXd input_y);
+        STAP(Eigen::MatrixXd &input_dists,
+                Eigen::MatrixXd &input_d_one, 
+                Eigen::MatrixXd &input_d_two, 
+                Eigen::MatrixXd &input_d_three, 
+                Eigen::VectorXd &input_y);
 
         double calculate_total_energy(double cur_beta,  double cur_theta,  double &cur_bm,  double &cur_tm);
 

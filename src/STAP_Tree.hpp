@@ -29,9 +29,12 @@ class STAP_Tree
                 double beta_proposed, double theta_proposed,
                 double beta_init, double theta_init, 
                 double bmp, double tmp, double bmi, double tmi,
-                double u,int v, int j, double &epsilon, std::mt19937 &rng);
+                double u,int v, int j, double &epsilon_theta, 
+                double &epsilon_beta,std::mt19937 &rng);
 
-        void Leapfrog(STAP &stap_object, double &cur_beta, double &cur_theta, double bm, double tm, double epsilon);
+        void Leapfrog(STAP &stap_object, double &cur_beta,
+                      double &cur_theta, double bm, double tm, 
+                      double epsilon_theta, double epsilon_beta);
 
         const int get_s_prime() const; 
 

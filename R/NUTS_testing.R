@@ -348,12 +348,12 @@ rslts %>% filter(theta%in% c(-2.95,1.5)) %>%
 
 
 # Stap_diffndiff testing --------------------------------------------------
-
-Rcpp::sourceCpp("src/Rinterface.cpp")
 library(coda)
 library(tictoc)
-iter_max <- 2E3
-warmup <- 1E3
+
+Rcpp::sourceCpp("src/Rinterface.cpp")
+iter_max <- 750
+warmup <- 500
 beta_init2 <- runif(n = 1,-2,-2)
 theta_init2 <- runif(n = 1,-2,-2)
 tic()
@@ -372,92 +372,20 @@ fit1 <- stap_diffndiff(y = y,
                       sd_theta = 1,
                       seed = 23 )
 toc()
-beta_init2 <- runif(n = 1,-2,-2)
-theta_init2 <- runif(n = 1,-2,-2)
-tic()
-fit2 <- stap_diffndiff(y = y,
-                       beta = beta_init2,
-                       theta = theta_init2,
-                       distances = dists,
-                       d_one = d_one ,
-                       d_two = d_two,
-                       d_three = d_three,
-                       adapt_delta = .65,
-                       warmup = warmup, 
-                       iter_max = iter_max,
-                       max_treedepth = 10,
-                       sd_beta = 1,
-                       sd_theta = 1,
-                       seed = 23 )
-toc()
 
-beta_init2 <- runif(n = 1,-2,-2)
-theta_init2 <- runif(n = 1,-2,-2)
-tic()
-fit3 <- stap_diffndiff(y = y,
-                       beta = beta_init2,
-                       theta = theta_init2,
-                       distances = dists,
-                       d_one = d_one ,
-                       d_two = d_two,
-                       d_three = d_three,
-                       adapt_delta = .65,
-                       warmup = warmup, 
-                       iter_max = iter_max,
-                       max_treedepth = 10,
-                       sd_beta = 1,
-                       sd_theta = 1,
-                       seed = 23 )
-toc()
-
-
-
-beta_init2 <- runif(n = 1,-2,-2)
-theta_init2 <- runif(n = 1,-2,-2)
-tic()
-fit4 <- stap_diffndiff(y = y,
-                       beta = beta_init2,
-                       theta = theta_init2,
-                       distances = dists,
-                       d_one = d_one ,
-                       d_two = d_two,
-                       d_three = d_three,
-                       adapt_delta = .65,
-                       warmup = warmup, 
-                       iter_max = iter_max,
-                       max_treedepth = 10,
-                       sd_beta = 1,
-                       sd_theta = 1,
-                       seed = 23 )
-toc()
 
 
 samples <- tibble(chain=1,
        beta = fit1$beta_samps,
        theta = fit1$theta_samps,
-       acceptance = fit1$acceptance) %>% mutate(ix = 1:n()) %>% 
-    rbind(.,
-          tibble(chain = 2,
-                 beta = fit2$beta_samps,
-                 theta = fit2$theta_samps,
-                 acceptance = fit2$acceptance) %>% mutate(ix = 1:n())) %>% 
-    rbind(.,
-          tibble(chain = 3,
-                   beta = fit3$beta_samps,
-                   theta = fit3$theta_samps,
-                   acceptance = fit3$acceptance) %>% mutate(ix = 1:n())) %>% 
-    rbind(.,
-          tibble(chain = 4, 
-                 beta = fit4$beta_samps,
-                 theta = fit4$theta_samps,
-                 acceptance = fit4$acceptance) %>% mutate(ix = 1:n()))
+       acceptance = fit1$acceptance) %>% mutate(ix = 1:n())
 
 
 
 
-final_samples <- samples %>% filter(ix>1000,acceptance==1)
+final_samples <- samples %>% filter(ix>warmup,acceptance==1)
 
-final_samples %>% filter(chain!=2,chain!=4) %>% 
+final_samples %>% 
     gather(beta,theta,key="Parameters",value="Samples") %>% 
     mutate(true_par = 0.5*(Parameters=="theta") + 1.2*(Parameters=="beta")) %>% 
     ggplot(aes(x=Samples)) + geom_histogram() + theme_bw() + 

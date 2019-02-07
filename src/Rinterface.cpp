@@ -31,7 +31,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
 
         Eigen::VectorXi acceptance(iter_max);
         acceptance = Eigen::VectorXi::Zero(iter_max);
-        Eigen::VectorXd epsilons(iter_max);
+        Eigen::VectorXd epsilon_betas(iter_max);
+        Eigen::VectorXd epsilon_thetas(iter_max);
         Eigen::VectorXd beta_out(iter_max); 
         beta_out = Eigen::VectorXd::Zero(iter_max);
         Eigen::VectorXd theta_out(iter_max);
@@ -55,7 +56,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
 
         int n ,s, j, vj;
         double p;
-        double epsilon_bar = 1.0;
+        double epsilon_bar_beta = 1.0;
+        double epsilon_bar_theta = 1.0;
         double H_bar = 0.0;
         double gamma = 0.05;
         double t_naught = 1;
@@ -65,8 +67,10 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
         STAP stap_object(distances,d_one,d_two,d_three,y);
         bm = GaussianNoise_scalar(rng) * sd_beta;
         tm = GaussianNoise_scalar(rng) * sd_theta;
-        double epsilon = stap_object.FindReasonableEpsilon(beta,theta,bm,tm,rng);
-        double mu = log(50*epsilon);
+        double epsilon_theta = stap_object.FindReasonableEpsilon(beta,theta,bm,tm,rng);
+        double epsilon_beta = epsilon_theta;
+        double mu_theta = log(50*epsilon_theta);
+        double mu_beta = log(10*epsilon_theta);
 
 
         Rcpp::Rcout << "Beginning Sampling" << std::endl;
@@ -98,7 +102,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                 vj = coin_flip(rng) <= .5 ? 1: -1;
                 if(vj == -1){
                 //Rcpp::Rcout << "Growing Tree to the left " << j << std::endl;
-                    tree.BuildTree(stap_object,beta_left,theta_left,beta_init,theta_init,bml,tml,bm,tm,log_z,vj,j,epsilon,rng);
+                    tree.BuildTree(stap_object,beta_left,theta_left,beta_init,theta_init,bml,tml,bm,tm,log_z,vj,j,epsilon_theta,epsilon_beta,rng);
                     //Rcpp::Rcout << "left branch at top: " << tree.get_bl() << std::endl;
                     beta_left = tree.get_bl();
                     bml = tree.get_bml();
@@ -106,7 +110,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                     tml = tree.get_tml();
                 }else{
                 //Rcpp::Rcout << "Growing Tree to the right " << j << std::endl;
-                    tree.BuildTree(stap_object,beta_right,theta_right,beta_init,theta_init,bmr,tmr,bm,tm,log_z,vj,j,epsilon,rng);
+                    tree.BuildTree(stap_object,beta_right,theta_right,beta_init,theta_init,bmr,tmr,bm,tm,log_z,vj,j,epsilon_theta,epsilon_beta,rng);
                     //Rcpp::Rcout << "right branch at top: " << tree.get_bl() << std::endl;
                     beta_right = tree.get_br();
                     bmr = tree.get_bmr();
@@ -133,15 +137,19 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                     Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
-                epsilons(iter_ix-1) = epsilon;
+                epsilon_betas(iter_ix-1) = epsilon_beta;
+                epsilon_thetas(iter_ix-1) = epsilon_theta;
             }
             if(iter_ix <= warmup){
                 H_bar = (1.0 - 1.0 / (iter_ix + t_naught)) * H_bar + (1.0 /(iter_ix + t_naught)) * (adapt_delta - tree.get_alpha_prime() / tree.get_n_alpha());
-                epsilon = exp(mu - sqrt(iter_ix) / gamma * H_bar);
-                epsilon_bar = exp(pow(iter_ix,-kappa) * log(epsilon) + (1.0 - pow(iter_ix,-kappa)) * log(epsilon_bar));
+                epsilon_beta = exp(mu_beta - sqrt(iter_ix) / gamma * H_bar);
+                epsilon_theta = exp(mu_theta - sqrt(iter_ix) / gamma * H_bar);
+                epsilon_bar_theta = exp(pow(iter_ix,-kappa) * log(epsilon_theta) + (1.0 - pow(iter_ix,-kappa)) * log(epsilon_bar_theta));
+                epsilon_bar_beta = exp(pow(iter_ix,-kappa) * log(epsilon_beta) + (1.0 - pow(iter_ix,-kappa)) * log(epsilon_bar_beta));
             }
             else 
-                epsilon = epsilon_bar;
+                epsilon_theta = epsilon_bar_theta;
+                epsilon_beta = epsilon_bar_beta;
             
             beta_init = beta;
             theta_init = theta;
@@ -153,8 +161,10 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                               Rcpp::Named("theta_samps") = theta_out,
                               Rcpp::Named("treedepth") = treedepth,
                               Rcpp::Named("acceptance") = acceptance,
-                              Rcpp::Named("epsilonss") = epsilons,
-                              Rcpp::Named("epsilon") = epsilon );
+                              Rcpp::Named("epsilon_betas") = epsilon_betas,
+                              Rcpp::Named("epsilon_thetas") = epsilon_thetas,
+                              Rcpp::Named("epsilon_beta") = epsilon_beta,
+                              Rcpp::Named("epsilon_theta") = epsilon_theta);
    
 }
 
