@@ -1,33 +1,37 @@
 #include<random>
-#include <RcppEigen.h>
+#include<RcppEigen.h>
+#include<Eigen/Core>
 
 class STAP
 {
     private:
         Eigen::VectorXd X;
-        Eigen::VectorXd X_mean; Eigen::VectorXd X_diff;
+        Eigen::VectorXd X_mean; 
+        Eigen::VectorXd X_diff;
         Eigen::VectorXd X_prime;
         Eigen::VectorXd X_mean_prime;
         Eigen::VectorXd X_prime_diff;
         double beta_grad;
         double theta_grad;
         Eigen::ArrayXXd dists;
-        Eigen::MatrixXd d_one;
-        Eigen::MatrixXd d_two;
-        Eigen::MatrixXd d_three;
+        Eigen::ArrayXXi u_crs;
+        Eigen::MatrixXd subj_array;
+        Eigen::ArrayXd subj_n;
         Eigen::VectorXd y;
         double sigma;
 
     public:
-        STAP(Eigen::ArrayXXd &input_dists,
-                Eigen::MatrixXd &input_d_one, 
-                Eigen::MatrixXd &input_d_two, 
-                Eigen::MatrixXd &input_d_three, 
-                Eigen::VectorXd &input_y);
+        STAP(Eigen::ArrayXXd& input_dists,
+             Eigen::ArrayXXi& input_ucrs,
+             Eigen::MatrixXd& input_subj_array,
+             Eigen::ArrayXd& input_subj_n,
+             Eigen::VectorXd& input_y);
 
         double calculate_total_energy(double cur_beta,  double cur_theta,  double &cur_bm,  double &cur_tm);
 
         double sample_u( double &cur_beta, double &cur_theta,  double &cur_bm,  double &cur_tm,  std::mt19937 &rng);
+
+        void calculate_X( double &theta);
 
         void calculate_X_diff( double &theta);
 

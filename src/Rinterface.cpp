@@ -15,19 +15,18 @@
 //
 //
 // [[Rcpp::export]]
-Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
+Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                           double beta, 
                           double theta,
-                          Eigen::ArrayXXd &distances,
-                          Eigen::MatrixXd &d_one,
-                          Eigen::MatrixXd &d_two,
-                          Eigen::MatrixXd &d_three,
-                          const double &adapt_delta, const int iter_max,
-                          const double sd_beta,
-                          const double sd_theta,
-                          const int max_treedepth,
-                          const int warmup,
-                          const int seed) {
+                          Eigen::ArrayXXd& distances,
+                          Eigen::ArrayXXi& u_crs,
+                          Eigen::MatrixXd& subj_array,
+                          Eigen::ArrayXd& subj_n,
+                          const double& adapt_delta,
+                          const int& iter_max,
+                          const int& max_treedepth,
+                          const int& warmup,
+                          const int& seed) {
 
         Eigen::VectorXi acceptance(iter_max);
         acceptance = Eigen::VectorXi::Zero(iter_max);
@@ -64,18 +63,25 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
-        STAP stap_object(distances,d_one,d_two,d_three,y);
-        bm = GaussianNoise_scalar(rng) * sd_beta;
-        tm = GaussianNoise_scalar(rng) * sd_theta;
-        double epsilon_theta = stap_object.FindReasonableEpsilon(beta,theta,bm,tm,rng);
+        STAP stap_object(distances,u_crs,subj_array,subj_n,y);
+        bm = GaussianNoise_scalar(rng); 
+        tm = GaussianNoise_scalar(rng);
+        //double epsilon_theta = stap_object.FindReasonableEpsilon(beta,theta,bm,tm,rng);
+        double epsilon_theta = 1.0;
         double epsilon_beta = epsilon_theta;
-        double mu_theta = log(50*epsilon_theta);
+        double mu_theta = log(10*epsilon_theta);
         double mu_beta = log(10*epsilon_theta);
+        double junk_theta = theta;
+        double junk_beta = beta;
+        double junk_bm = 0.0;
+        double junk_tm = 0.0;
+        stap_object.calculate_X_diff(junk_theta);
 
 
         Rcpp::Rcout << "Beginning Sampling" << std::endl;
-
-        for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
+        
+        
+       for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
             if(iter_ix % 10 == 0){
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
@@ -139,6 +145,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
                 }
                 epsilon_betas(iter_ix-1) = epsilon_beta;
                 epsilon_thetas(iter_ix-1) = epsilon_theta;
+                if(acceptance(iter_ix-1) == 0  && iter_ix > warmup) iter_ix = iter_ix - 1;
             }
             if(iter_ix <= warmup){
                 H_bar = (1.0 - 1.0 / (iter_ix + t_naught)) * H_bar + (1.0 /(iter_ix + t_naught)) * (adapt_delta - tree.get_alpha_prime() / tree.get_n_alpha());
@@ -155,11 +162,11 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd &y,
             theta_init = theta;
             treedepth(iter_ix-1) = j;
         }
-
     
     return Rcpp::List::create(Rcpp::Named("beta_samps") =  beta_out,
                               Rcpp::Named("theta_samps") = theta_out,
                               Rcpp::Named("treedepth") = treedepth,
+                              Rcpp::Named("energy") = stap_object.calculate_total_energy(junk_beta,junk_theta,junk_bm,junk_tm),
                               Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilon_betas") = epsilon_betas,
                               Rcpp::Named("epsilon_thetas") = epsilon_thetas,
@@ -173,41 +180,35 @@ Rcpp::List test_grads(Eigen::VectorXd &y,
                           double beta, 
                           double theta,
                           Eigen::ArrayXXd &distances,
-                          Eigen::MatrixXd &d_one,
-                          Eigen::MatrixXd &d_two,
-                          Eigen::MatrixXd &d_three,
+                          Eigen::ArrayXXi &u_crs,
+                          Eigen::MatrixXd &subj_array,
+                          Eigen::ArrayXd &subj_n,
                           Eigen::VectorXd &theta_grid,
-                          Eigen::VectorXd &beta_grid,
-                          const double &adapt_delta,
-                          const int iter_max,
-                          const int warmup,
-                          const int seed) {
+                          Eigen::VectorXd &beta_grid
+                          ) {
 
-        std::mt19937 rng;
-        rng = std::mt19937(seed);
         double bm = 0.0;
         double tm = 0.0;
 
-
-        STAP stap_object(distances,d_one,d_two,d_three,y);
+        STAP stap_object(distances,u_crs,subj_array,subj_n,y);
         Eigen::VectorXd beta_one(theta_grid.size() * beta_grid.size());
         Eigen::VectorXd theta_one(theta_grid.size() * beta_grid.size());
         Eigen::VectorXd th_grad_grid(theta_grid.size() * beta_grid.size());
         Eigen::VectorXd bt_grad_grid(theta_grid.size() * beta_grid.size());
         Eigen::VectorXd energy_grid(theta_grid.size() * beta_grid.size());
+        Eigen::VectorXd mean_Xd_grid(theta_grid.size() * beta_grid.size());
         int cntr = 0;
-        double theta_tilde;
         
 
         for(int i = 0; i < theta_grid.size(); i++){
             for(int j =0; j<beta_grid.size();j++){
                 beta_one(cntr) = beta_grid(j);
                 theta_one(cntr) = theta_grid(i);
-                theta_tilde = 10.0 / (1.0 + exp(-theta_grid(i)));
                 stap_object.calculate_gradient(beta_grid(j),theta_grid(i));
                 energy_grid(cntr) = stap_object.calculate_total_energy(beta_grid(j),theta_grid(i),bm,tm);
                 th_grad_grid(cntr) = stap_object.get_theta_grad(); 
                 bt_grad_grid(cntr) = stap_object.get_beta_grad();
+                mean_Xd_grid(cntr) = (stap_object.get_X_diff()).mean();
                 cntr ++ ;
             }
         }
@@ -217,6 +218,7 @@ Rcpp::List test_grads(Eigen::VectorXd &y,
     return Rcpp::List::create(Rcpp::Named("beta_gradient") =  bt_grad_grid,
                               Rcpp::Named("theta_gradient") = th_grad_grid,
                               Rcpp::Named("beta_grid") = beta_one,
+                              Rcpp::Named("Xmn_grid") = mean_Xd_grid,
                               Rcpp::Named("theta_grid") = theta_one,
                               Rcpp::Named("energy") = energy_grid );
 }

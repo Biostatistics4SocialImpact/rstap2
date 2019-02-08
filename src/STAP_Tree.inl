@@ -1,12 +1,12 @@
-void STAP_Tree::BuildTree(STAP &stap_object,
+void STAP_Tree::BuildTree(STAP& stap_object,
         double beta_proposed, double theta_proposed, 
         double beta_init, double theta_init, 
         double bmp, double tmp,
         double bmi, double tmi,
         double u, int v, int j,
-        double &epsilon_beta, 
-        double &epsilon_theta,
-        std::mt19937 &rng){
+        double& epsilon_beta, 
+        double& epsilon_theta,
+        std::mt19937& rng){
 
     if( j == 0 ){
         //Rcpp::Rcout << "Base Case Reached" << std::endl;
@@ -100,7 +100,7 @@ void STAP_Tree::BuildTree(STAP &stap_object,
 }
 
 
-void STAP_Tree::Leapfrog(STAP &stap_object,double &cur_beta, double &cur_theta, double bm, double tm, double epsilon_theta, double epsilon_beta){
+void STAP_Tree::Leapfrog(STAP& stap_object,double& cur_beta, double& cur_theta, double bm, double tm, double epsilon_theta, double epsilon_beta){
 
     //Rcpp::Rcout << "Leapfrogging" << std::endl;
 
