@@ -13,39 +13,41 @@ class STAP
         Eigen::VectorXd X_prime_diff;
         double beta_grad;
         double theta_grad;
+        double sigma_grad;
         Eigen::ArrayXXd dists;
         Eigen::ArrayXXi u_crs;
         Eigen::MatrixXd subj_array;
         Eigen::ArrayXd subj_n;
         Eigen::VectorXd y;
-        double sigma;
+        bool diagnostics;
 
     public:
         STAP(Eigen::ArrayXXd& input_dists,
              Eigen::ArrayXXi& input_ucrs,
              Eigen::MatrixXd& input_subj_array,
              Eigen::ArrayXd& input_subj_n,
-             Eigen::VectorXd& input_y);
+             Eigen::VectorXd& input_y,
+             const bool& input_diagnostics);
 
-        double calculate_total_energy(double cur_beta,  double cur_theta,  double &cur_bm,  double &cur_tm);
+        double calculate_total_energy(double& cur_beta,  double& cur_theta,  double& cur_sigma, double &cur_bm,  double &cur_tm, double& cur_sm);
 
-        double sample_u( double &cur_beta, double &cur_theta,  double &cur_bm,  double &cur_tm,  std::mt19937 &rng);
+        double sample_u(double& cur_beta, double& cur_theta, double& cur_sigma,  double& cur_bm,  double& cur_tm, double& cur_sm,  std::mt19937& rng);
 
-        void calculate_X( double &theta);
+        void calculate_X(double& theta);
 
-        void calculate_X_diff( double &theta);
+        void calculate_X_diff(double& theta);
 
-        void calculate_X_mean( double &theta);
+        void calculate_X_mean();
 
-        void calculate_X_prime(double &theta, double &cur_theta);
+        void calculate_X_prime(double& theta, double& cur_theta);
 
-        void calculate_X_mean_prime(double &theta, double &cur_theta);
+        void calculate_X_mean_prime();
 
-        void calculate_X_prime_diff(double &theta, double &cur_theta);
+        void calculate_X_prime_diff(double& theta, double& cur_theta);
 
-        void calculate_gradient(double &cur_beta, double &cur_theta);
+        void calculate_gradient(double& cur_beta, double& cur_theta, double& cur_sigma);
 
-        double FindReasonableEpsilon(double &cur_beta, double &cur_theta, double &bm, double &tm, std::mt19937 &rng);
+        double FindReasonableEpsilon(double& cur_beta, double& cur_theta,double& cur_sigma, double& bm, double& tm,double& sm, std::mt19937& rng);
 
         Eigen::VectorXd get_X() const{
             return(X);
@@ -73,6 +75,10 @@ class STAP
 
         double get_theta_grad() const{
             return(theta_grad);
+        }
+
+        double get_sigma_grad() const{
+            return(sigma_grad);
         }
 
 };

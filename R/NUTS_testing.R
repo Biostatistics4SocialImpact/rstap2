@@ -114,6 +114,8 @@ create_X_diff <- function(dists,d_one,d_two,d_three,theta){
     return(X-X_mean)
 }
 
+
+
 get_ll <- function(y,dists,d_one,d_two,d_three,theta,beta,sigma = log(1)){
     sigma <- exp(sigma)
     theta_tilde <- 10/(1+exp(-theta))
@@ -121,7 +123,9 @@ get_ll <- function(y,dists,d_one,d_two,d_three,theta,beta,sigma = log(1)){
     sum(dnorm(x = y,mean = beta*X_diff,sd = sigma,log = T))
 }
 
-optim(c(0,0,0),function(x) 0-get_ll(y,dists,d_one,d_two,d_three,x[1],x[2],sigma = x[3]))
+
+
+optim(c(0,0,0),function(x) 0-get_ll2(y,dists,x[1],x[2],sigma = x[3]))
 
 get_ll <- function(y,dists,d_one,d_two,d_three,theta,beta){
     theta_tilde <- 10/(1+exp(-theta))
@@ -150,6 +154,9 @@ get_energy <- function(y,dists,d_one,d_two,d_three,theta,beta){
     return(ll)
 }
 
+
+
+optim(c(0,0),function(x) 0-get_energy2(y,dists,x[1],x[2]))
 
 optim(c(0,0),function(x) 0-get_energy(y,dists,d_one,d_two,d_three,x[1],x[2]))
 
@@ -211,11 +218,11 @@ get_theta_grad <- function(y,dists,d_one,d_two,d_three,theta,beta){
 
 uniroot(f = function(x) get_theta_grad(y,dists,d_one,d_two,d_three,x,1.2),interval = c(-5,5))
 
-Rrslts <- data_frame(#ll = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_ll(y,dists,d_one,d_two,d_three,z,w)),
-                     # grad_theta = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_ll_h(y,dists,d_one,d_two,d_three,z,w,1E-4)),
-                     # theta_grad = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_theta_grad(y,dists,d_one,d_two,d_three,z,w)),
-                     # energy = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_energy(y,dists,d_one,d_two,d_three,z,w)),
-                     # energy_h = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_energy_h(y,dists,d_one,d_two,d_three,z,w,1E-4)),
+Rrslts <- data_frame(ll = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_ll(y,dists,d_one,d_two,d_three,z,w)),
+                     grad_theta = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_ll_h(y,dists,d_one,d_two,d_three,z,w,1E-4)),
+                     theta_grad = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_theta_grad(y,dists,d_one,d_two,d_three,z,w)),
+                     energy = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_energy(y,dists,d_one,d_two,d_three,z,w)),
+                     energy_h = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_energy_h(y,dists,d_one,d_two,d_three,z,w,1E-4)),
                      ll_stapreg = map2_dbl(rslts$theta,rslts$beta,function(z,w) get_ll_stapreg(y,dists,z,w)),
                      beta = rslts$beta,
                      theta = rslts$theta)
@@ -276,22 +283,21 @@ Rrslts_stapreg %>% filter(beta>1,beta<1.3) %>%
 Rcpp::sourceCpp("src/Rinterface.cpp")
 
 
-sink("garbage.txt")
-fit <- test_grads(y = y,
-                      beta = beta_init,
-                      theta = -2.944,
-                      distances = dists,
-                      d_one = d_one , d_two = d_two,d_three = d_three,
-                      adapt_delta = .85,
-                      theta_grid = seq(from = -4, to = 3, by =0.05),
-                      beta_grid = seq(from=0, to=5, by=0.05),
-                      warmup = 5, iter_max = 10,
-                      seed = 23 )
-sink()
+
+grads <- test_grads(y = y,
+                  u_crs = as.matrix(u_crs),
+                  beta = runif(1,-2,2),
+                  subj_array = subj_mat1,
+                  theta = runif(1,-2,2),
+                  subj_n = subj_n,
+                  distances = dists_crs,
+                  theta_grid = seq(from = -4, to = 1, by =0.05),
+                  beta_grid = seq(from=0, to=3, by=0.1)
+                  )
 
 
-rslts <- data_frame(bg = fit$beta_gradient,tg=fit$theta_gradient,energy=fit$energy,
-           beta = fit$beta_grid, theta = fit$theta_grid)
+rslts <- tibble(bg = grads$beta_gradient,tg=grads$theta_gradient,energy=grads$energy,
+           beta = grads$beta_grid, theta = grads$theta_grid,Xmn = grads$Xmn_grid)
 
 rslts %>% mutate(theta = round(10 / (1+exp(-theta)),2)) %>% 
     filter(theta<.6,theta>.45) %>%  mutate(theta = factor(theta)) %>% 
@@ -304,7 +310,7 @@ rslts %>% mutate(theta = round(10 / (1+exp(-theta)),2)) %>%
 
 
 rslts  %>% mutate(theta = 10/(1.0 + exp(-theta))) %>%  
-    filter(beta>1,beta<=1.5,theta<=3) %>% mutate(beta = factor(beta)) %>% 
+    filter(beta>1,beta<=1.5,theta<=6) %>% mutate(beta = factor(beta)) %>% 
     ggplot(aes(x=theta,y=energy,color=beta)) + 
     geom_line() + theme_bw() + ggtitle("Log Posterior - theta perspective") + 
     xlab("Theta") + ylab("Log Posterior") + 
