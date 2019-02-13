@@ -8,6 +8,7 @@
 #include "STAP.hpp"
 #include "STAP_Tree.hpp"
 #include "STAP_MathHelpers.hpp"
+#include "STAP_Vars.hpp"
 // RcppEigen so that the build process will know what to do
 //
 // [[Rcpp::depends(RcppEigen)]]
@@ -23,6 +24,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                           Eigen::ArrayXXi& u_crs,
                           Eigen::MatrixXd& subj_array,
                           Eigen::ArrayXd& subj_n,
+                          Eigen::ArrayXi& stap_par_code,
+                          Eigen::ArrayXi& stap_bar_code,
                           const double& adapt_delta,
                           const int& iter_max,
                           const int& max_treedepth,

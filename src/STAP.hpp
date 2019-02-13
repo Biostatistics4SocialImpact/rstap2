@@ -11,7 +11,9 @@ class STAP
         Eigen::VectorXd X_prime;
         Eigen::VectorXd X_mean_prime;
         Eigen::VectorXd X_prime_diff;
+        double alpha_grad;
         double beta_grad;
+        double beta_bar_grad;
         double theta_grad;
         double sigma_grad;
         Eigen::ArrayXXd dists;
@@ -29,9 +31,11 @@ class STAP
              Eigen::VectorXd& input_y,
              const bool& input_diagnostics);
 
-        double calculate_total_energy(double& cur_beta,  double& cur_theta,  double& cur_sigma, double &cur_bm,  double &cur_tm, double& cur_sm);
+        double calculate_total_energy(double& cur_beta, double& cur_theta, double& cur_sigma, double& cur_bm,  double& cur_tm, double& cur_sm);
+            
+        double calculate_total_energy(double& cur_alpha, double& cur_beta,double& cur_beta_bar, double& cur_theta, double& cur_sigma, double& cur_am, double& cur_bm,double& cur_bbm, double& cur_tm, double& cur_sm);
 
-        double sample_u(double& cur_beta, double& cur_theta, double& cur_sigma,  double& cur_bm,  double& cur_tm, double& cur_sm,  std::mt19937& rng);
+        double sample_u(double& cur_beta, double& cur_theta, double& cur_sigma,  double& cur_bm,  double& cur_tm, double& cur_sm, std::mt19937& rng);
 
         void calculate_X(double& theta);
 
@@ -46,6 +50,8 @@ class STAP
         void calculate_X_prime_diff(double& theta, double& cur_theta);
 
         void calculate_gradient(double& cur_beta, double& cur_theta, double& cur_sigma);
+
+        void calculate_gradient(double& cur_alpha, double& cur_beta, double& cur_beta_bar, double& cur_theta, double& cur_sigma);
 
         double FindReasonableEpsilon(double& cur_beta, double& cur_theta,double& cur_sigma, double& bm, double& tm,double& sm, std::mt19937& rng);
 
@@ -69,8 +75,16 @@ class STAP
             return(X_prime_diff);
         }
 
+        double get_alpha_grad() const{
+            return(alpha_grad);
+        }
+
         double get_beta_grad() const{
             return(beta_grad);
+        }
+
+        double get_beta_bar_grad() const{
+            return(beta_bar_grad);
         }
 
         double get_theta_grad() const{

@@ -21,4 +21,3 @@ Eigen::VectorXd GaussianNoise(const int q, std::mt19937 &rng){
     }
     return(out);
 }
-

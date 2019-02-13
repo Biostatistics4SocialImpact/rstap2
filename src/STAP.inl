@@ -17,6 +17,77 @@ STAP::STAP(Eigen::ArrayXXd& input_dists,
 
 }
 
+double STAP::calculate_total_energy(double& cur_alpha, double& cur_beta,double& cur_beta_bar, double& cur_theta, double& cur_sigma, double& cur_am, double& cur_bm,double& cur_bbm, double& cur_tm, double& cur_sm){
+            
+    // likelihood normalizing constant 
+    double transformed_theta = 10 / (1.0 + exp(-cur_theta));
+    double transformed_sigma_sq = pow(exp(cur_sigma),2);
+    if(diagnostics){
+        Rcpp::Rcout << " Energy Calculation \n " << "------------------" << std::endl;
+        Rcpp::Rcout << " Parameter positions:" << std::endl;
+        Rcpp::Rcout << "alpha: " << cur_alpha << std::endl;
+        Rcpp::Rcout << "beta: " << cur_beta << std::endl;
+        Rcpp::Rcout << "beta_bar: " << cur_beta_bar << std::endl;
+        Rcpp::Rcout << "theta: " << 10 /  (1 + exp(-cur_theta) )  << std::endl;
+        Rcpp::Rcout << "sigma: " <<  exp(cur_sigma)  << std::endl;
+        Rcpp::Rcout <<  "------------------" << std::endl;
+    }
+    double out = 0;
+    this->calculate_X_diff(cur_theta);
+
+    out -= y.size() / 2.0 * log(M_PI * 2 * transformed_sigma_sq); 
+
+    // likelihood kernel
+    out += - (pow((y - Eigen::VectorXd::Constant(y.size(),cur_alpha) - X_diff * cur_beta - X_mean * cur_beta_bar).array(),2) ).sum() * .5 / transformed_sigma_sq; 
+
+    if(diagnostics)
+        Rcpp::Rcout << "likelihood" << out << std::endl;
+    
+    // alpha ~N(25,5)  prior
+    out += R::dnorm(cur_alpha,25,5,TRUE);
+
+    // beta ~ N(0,3) prior
+    out += R::dnorm(cur_beta,0,3,TRUE);//- 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
+
+    // beta_bar ~ N(0,3) prior
+    out += R::dnorm(cur_beta_bar,0,3,TRUE);//- 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
+
+    // log(theta) ~ N(1,1) prior 
+    out +=  R::dlnorm(transformed_theta,1,1,TRUE);//-log(transformed_theta) - .5 * log( 2.0 * M_PI) - .5 * pow(log(transformed_theta) - 1,2);
+
+    // sigma ~ C(0,5)
+    out +=  R::dcauchy(exp(cur_sigma),0,5,TRUE);
+
+    // theta constraints jacobian adjustment 
+    out +=  ( log(10.0) - cur_theta  - 2 * log(1+exp(-cur_theta)));   
+
+    if(diagnostics)
+        Rcpp::Rcout << "jacobian I" << out << std::endl;
+    
+    
+    // sigma jacobian
+    out += cur_sigma;
+
+    if(diagnostics){
+        Rcpp::Rcout << "jacobian II" << out << std::endl;
+        Rcpp::Rcout << "------------------ \n " << std::endl;
+    }
+
+    // Incorporate Kinetic Energy
+    out -= (pow(cur_tm,2)  + pow(cur_bm,2) + pow(cur_sm,2))/2.0;
+    out -= (pow(cur_am,2) + pow(cur_bbm,2))/2.0;
+    if(diagnostics)
+        Rcpp::Rcout << "Kinetic Energy " << out << std::endl;
+
+    out = (isinf(-out) || isnan(out)) ? (-1 * DBL_MAX) : out;
+
+    if(diagnostics)
+        Rcpp::Rcout << "Energy out " << out << std::endl;
+   
+    return(out);
+
+}
+
 double STAP::calculate_total_energy(double& cur_beta,  double& cur_theta, double& cur_sigma, double& cur_bm,  double& cur_tm, double& cur_sm){
     
 
@@ -148,7 +219,6 @@ void STAP::calculate_gradient(double& cur_beta, double& cur_theta, double& cur_s
 
     double theta_transformed =  10.0  / (1.0 + exp( - cur_theta));
     double sigma_transformed = exp(cur_sigma);
-    //sigma_transformed = isinf(sigma_transformed) ? DBL_MAX : sigma_transformed;
     double theta_exponentiated = theta_transformed / (10.0 - theta_transformed);
     double lp_prior_I = pow(theta_transformed,-1) * (10 * exp(-cur_theta)) / pow(1 + exp(-cur_theta),2);
     double lp_prior_II = 2*(log(theta_transformed) -1)/ (1 + exp(-cur_theta));
@@ -164,6 +234,33 @@ void STAP::calculate_gradient(double& cur_beta, double& cur_theta, double& cur_s
     //beta2_grad = 
 
 };
+
+void STAP::calculate_gradient(double& cur_alpha, double& cur_beta,double& cur_beta_bar, double& cur_theta, double& cur_sigma){
+
+    double theta_transformed = 10.0 / (1.0 + exp(- cur_theta));
+    double precision = pow(exp(cur_sigma),-2);
+    double theta_exponentiated = theta_transformed / (10.0 - theta_transformed);
+    double lp_prior_I = pow(theta_transformed,-1) * (10 * exp(-cur_theta)) / pow(1 + exp(-cur_theta),2);
+    double lp_prior_II = 2*(log(theta_transformed) -1)/ (1 + exp(-cur_theta));
+    this->calculate_X_diff(cur_theta);
+    this->calculate_X_prime_diff(theta_transformed,cur_theta);
+    // likelihood
+    alpha_grad = precision * ( y.sum() - cur_beta * X_diff.sum() - cur_beta_bar * X_mean.sum() - y.size() * cur_alpha);
+    beta_grad = precision * (y.dot(X_diff) - cur_beta *X_diff.dot(X_diff) - X_diff.dot(X_mean) * cur_beta_bar - X_diff.sum() * cur_alpha);
+    beta_bar_grad = precision * (y.dot(X_mean) - cur_beta * X_diff.dot(X_mean) - cur_beta_bar * X_diff.dot(X_mean) - X_mean.sum() * cur_alpha);
+    sigma_grad = precision * (pow((y - Eigen::VectorXd::Constant(y.size(),cur_alpha) - X_diff * cur_beta - X_mean * cur_beta_bar).array(),2) ).sum() - y.size();
+    theta_grad = precision * ( y.dot(X_prime_diff)*cur_beta - y.dot(X_mean_prime) * cur_beta_bar - pow(cur_beta,2) * X_prime_diff.dot(X_diff)); 
+    theta_grad += precision * (cur_beta * X_prime_diff.dot(X_mean) + X_diff.dot(X_mean_prime) * cur_beta_bar - cur_beta * X_prime_diff.sum() * cur_alpha);
+    theta_grad +=  precision * (cur_beta_bar * X_prime_diff.dot(X_mean) * cur_beta - cur_beta_bar * X_mean_prime.sum() * cur_alpha);
+    // prior components
+    alpha_grad += -1.0 / 25 * cur_alpha;
+    beta_grad += -1.0 / 9.0 * cur_beta;
+    beta_bar_grad += -1.0 / 9.0 * cur_beta_bar;
+    theta_grad +=  -lp_prior_I - lp_prior_II;
+    theta_grad += theta_grad + (1 - theta_exponentiated) / (theta_exponentiated +1); // jacobian factor
+    sigma_grad +=  -(2*pow(precision,-2)) / (5+pow(precision,-2)) + 1; 
+
+}
 
 double STAP::FindReasonableEpsilon(double& cur_beta, double& cur_theta,double& cur_sigma, double& bm, double& tm,double& sm,std::mt19937& rng){
 
@@ -282,81 +379,3 @@ double STAP::FindReasonableEpsilon(double& cur_beta, double& cur_theta,double& c
         Rcpp::Rcout << "Find Reasonable Epsilon End with epsilon =  " <<  epsilon << "\n \n \n " << std::endl;
     return(epsilon);
 }
-
-/*
-Eigen::VectorXd calculate_X(Eigen::ArrayXXd& dists,Eigen::ArrayXXi& u_crs, double& theta){
-    
-    int start_col;
-    int range_len;
-    Eigen::VectorXd X(u_crs.rows());
-    for(int bef_ix = 0; bef_ix <= (dists.rows()-1); bef_ix ++){
-        for(int subj_ix = 0; subj_ix < u_crs.rows(); subj_ix ++){
-            start_col = u_crs(subj_ix,bef_ix);
-            range_len = u_crs(subj_ix,bef_ix+1) - start_col + 1;
-            X(subj_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta  )).sum();
-        }
-    }
-    return(X);
-}
-
-Eigen::VectorXd calculate_X_mean(Eigen::VectorXd& X, double& theta, Eigen::MatrixXd& subj_array, Eigen::ArrayXd& subj_n){
-
-    return(subj_array.transpose() * ((subj_array * X).array() * subj_n).matrix());
-
-}
-
-Eigen::VectorXd calculate_X_diff(double& cur_theta, Eigen::ArrayXXd& dists, Eigen::ArrayXXi& u_crs, Eigen::MatrixXd& subj_array, Eigen::ArrayXd& subj_n){
-
-    Eigen::VectorXd X = calculate_X(dists,u_crs,cur_theta);
-    Eigen::VectorXd X_mean = calculate_X_mean(X,cur_theta,subj_array,subj_n);
-    return(X - X_mean);
-}
-
-//[[Rcpp::export]]
-double calculate_sigma_gradient(double& cur_beta, double& cur_theta, double& cur_sigma, Eigen::VectorXd& y, Eigen::ArrayXXd& dists, Eigen::ArrayXXi& u_crs, Eigen::MatrixXd& subj_array, Eigen::ArrayXd& subj_n){
-
-    double sigma_transformed = exp(cur_sigma);
-    double sigma_grad;
-    Eigen::VectorXd X_diff = calculate_X_diff(cur_theta,dists,u_crs,subj_array,subj_n);
-    sigma_grad = pow(sigma_transformed,-2) * (y-cur_beta*X_diff).dot(y-cur_beta*X_diff) - y.size()  - (2*sigma_transformed) / (5+sigma_transformed)+ 1; 
-    return(sigma_grad);
-}
-
-//[[Rcpp::export]]
-double calculate_total_energy(double& cur_beta,  double& cur_theta, double& cur_sigma, Eigen::VectorXd& y, Eigen::ArrayXXd& dists, Eigen::ArrayXXi& u_crs, Eigen::MatrixXd& subj_array, Eigen::ArrayXd& subj_n){
-    
-
-    //Rcpp::Rcout << " Energy Calculation \n " << "------------------" << std::endl;
-    // likelihood normalizing constant 
-    double transformed_theta = 10 / (1.0 + exp(-cur_theta));
-    double transformed_sigma = exp(cur_sigma);
-    transformed_theta = transformed_theta == 0 ? DBL_MIN : transformed_theta;
-    transformed_sigma = transformed_sigma == 0 ? DBL_MIN : transformed_sigma;
-    double out = 0;
-    Eigen::VectorXd X_diff = calculate_X_diff(transformed_theta,dists,u_crs,subj_array,subj_n);
-    for(int i =0;i<y.rows();i++)
-        out += R::dnorm(y[i],X_diff(i)*cur_beta,transformed_sigma,TRUE);
-
-//    out -= y.size() / 2.0 * log(M_PI * 2); 
-
-    // likelihood kernel
- //   out += - (pow((y - X_diff * cur_beta).array(),2) ).sum() * .5; 
-
-    // beta ~ N(0,3) prior
-    out += R::dnorm(cur_beta,0,3,TRUE);//- 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
-
-    // log(theta) ~ N(1,1) prior 
-    out +=  R::dlnorm(transformed_theta,1,1,TRUE);//-log(transformed_theta) - .5 * log( 2.0 * M_PI) - .5 * pow(log(transformed_theta) - 1,2);
-
-    // exp(sigma) ~ C(0,5)
-    out +=  R::dcauchy(transformed_sigma,0,5,TRUE);
-
-    // theta constraints jacobian adjustment 
-    out +=  ( log(10.0) - cur_theta  - 2 * log(1+exp(-cur_theta)));   
-    
-    // sigma jacobian
-    out += cur_sigma;
-
-    return(out);
-}
-*/
