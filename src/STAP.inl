@@ -14,7 +14,6 @@ STAP::STAP(Eigen::ArrayXXd& input_dists,
     X_prime = Eigen::VectorXd::Zero(input_ucrs.rows(),dists.rows());
     diagnostics = input_diagnostics;
 
-
 }
 
 double STAP::calculate_total_energy(double& cur_alpha, double& cur_beta,double& cur_beta_bar, double& cur_theta, double& cur_sigma, double& cur_am, double& cur_bm,double& cur_bbm, double& cur_tm, double& cur_sm){
@@ -191,7 +190,7 @@ void STAP::calculate_X_prime(double& theta, double& cur_theta){
 
     int start_col;
     int range_len;
-    // Can probably combine below with calculate_X to remove n separate operations...
+    // Can probably combine below with calculate_X to remove N*q separate operations...
     for(int bef_ix = 0; bef_ix <= (dists.rows()-1); bef_ix ++){
         for(int subj_ix = 0; subj_ix < u_crs.rows(); subj_ix ++){
             start_col = u_crs(subj_ix,bef_ix);
@@ -228,12 +227,10 @@ void STAP::calculate_gradient(double& cur_beta, double& cur_theta, double& cur_s
     theta_grad = theta_grad - lp_prior_I ; // log theta prior 
     theta_grad = theta_grad - lp_prior_II; // log theta prior
     theta_grad = theta_grad +  (1 - theta_exponentiated) / (theta_exponentiated + 1);  //Jacobian factor
-    theta_grad = (theta_grad == 0 && isinf(exp(-cur_theta)))  ?  100 :  theta_grad;
     beta_grad = pow(sigma_transformed,-2) * (y-cur_beta * X_diff).dot(X_diff) - 1.0/9.0 * cur_beta;
     sigma_grad = pow(sigma_transformed,-2) * (y-cur_beta*X_diff).dot(y-cur_beta*X_diff) - y.size()  - (2*sigma_transformed) / (5+sigma_transformed)+ 1; 
-    //beta2_grad = 
 
-};
+}
 
 void STAP::calculate_gradient(double& cur_alpha, double& cur_beta,double& cur_beta_bar, double& cur_theta, double& cur_sigma){
 

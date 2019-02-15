@@ -17,25 +17,28 @@ class SV
         Eigen::VectorXd bm;
         Eigen::VectorXd bbm;
         Eigen::VectorXd tm;
+        Eigen::ArrayXi spc;
         double am;
         double sm;
 
         SV(Eigen::ArrayXi& stap_par_code_input,std::mt19937& rng){
+            spc = stap_par_code_input;
             sigma = initialize_scalar(rng);
-            alpha = stap_par_code_input(0) == 0 ? 0 : initialize_scalar(rng);
-            delta = stap_par_code_input(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
-            beta = stap_par_code_input(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
-            beta_bar = stap_par_code_input(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
+            alpha = spc(0) == 0 ? 0 : initialize_scalar(rng);
+            delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
+            beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
+            beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
             theta = initialize_vec(stap_par_code_input(4),rng);
         }
 
 
         void update_momenta(std::mt19937& rng){
-            dm = GaussianNoise(delta.size(),rng); 
-            bm = GaussianNoise(beta.size(),rng);
-            bbm = GaussianNoise(beta_bar.size(),rng);
-            tm = GaussianNoise(theta.size(),rng);
             sm = GaussianNoise_scalar(rng);
+            am = GaussianNoise_scalar(rng);
+            dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
+            bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
+            bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1): GaussianNoise(beta_bar.size(),rng);
+            tm = GaussianNoise(theta.size(),rng);
         }
 
         void copy_momenta(SV other){
@@ -47,7 +50,7 @@ class SV
             sm = other.sm;
         }
 
-        void position_update(SV updated_sv){
+        void position_update(SV& updated_sv){
             delta = updated_sv.delta;
             beta = updated_sv.beta;
             beta_bar = updated_sv.beta_bar;
@@ -70,7 +73,7 @@ class SV
         }
 
 }; 
-bool get_UTI_one(SV svl, SV svr){
+bool get_UTI_one(SV& svl,SV& svr){
 
     double out;
     out = (svr.delta - svl.delta).dot(svl.dm) + (svr.beta - svl.beta).dot(svl.bm) + (svr.beta_bar - svl.beta_bar).dot(svl.bbm) + (svr.theta - svl.theta).dot(svl.tm) + (svr.sigma - svl.sigma) * (svl.sm);
@@ -79,7 +82,7 @@ bool get_UTI_one(SV svl, SV svr){
     return((out >=0));
 }
 
-bool get_UTI_two(SV svl, SV svr){
+bool get_UTI_two(SV& svl,SV& svr){
 
     double out;
     out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm) + (svr.beta_bar - svl.beta_bar).dot(svl.bbm) +  (svr.theta - svl.theta).dot(svr.tm) + (svr.sigma - svl.sigma) * (svr.sm);

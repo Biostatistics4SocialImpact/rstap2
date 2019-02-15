@@ -106,25 +106,22 @@ subj_n <- rep(1/3,300)
 Rcpp::sourceCpp("src/Rinterface.cpp")
 iter_max <- 500
 warmup <- 250
-beta_init <- runif(n = 1,-2,-2)
-theta_init <- runif(n = 1,-2,-2)
-sigma_init <- runif(n = 1, -2, 2)
+sink("~/Desktop/Routput.txt")
 tic()
 fit1 <- stap_diffndiff(y = y,
                        u_crs = as.matrix(u_crs),
-                       beta = beta_init,
                        subj_array = subj_mat1,
-                       theta = theta_init,
-                       sigma = sigma_init,
                        subj_n = subj_n,
+                       stap_par_code = c(0,0,1,0,1),
                        distances = dists_crs,
                        adapt_delta = .65,
                        warmup = warmup, 
                        iter_max = iter_max,
                        max_treedepth = 10,
-                       seed = 23,
-                       diagnostics = 0)
+                       seed = 2431,
+                       diagnostics = 1)
 toc()
+sink()
 
 
 

@@ -17,15 +17,11 @@
 //
 // [[Rcpp::export]]
 Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
-                          double beta, 
-                          double theta,
-                          double sigma,
                           Eigen::ArrayXXd& distances,
                           Eigen::ArrayXXi& u_crs,
                           Eigen::MatrixXd& subj_array,
                           Eigen::ArrayXd& subj_n,
                           Eigen::ArrayXi& stap_par_code,
-                          Eigen::ArrayXi& stap_bar_code,
                           const double& adapt_delta,
                           const int& iter_max,
                           const int& max_treedepth,
@@ -48,24 +44,12 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         std::mt19937 rng;
         rng = std::mt19937(seed);
         std::uniform_real_distribution<double> coin_flip(0.0,1.0);
-        double beta_init = beta;
-        double theta_init = theta;
-        double sigma_init = sigma;
-        double beta_left; 
-        double beta_right;
-        double theta_left;
-        double theta_right;
-        double sigma_left;
-        double sigma_right;
-        double bm;
-        double bml;
-        double bmr; 
-        double tm;
-        double tml;
-        double tmr;
-        double sm;
-        double sml;
-        double smr;
+        SV sv(stap_par_code,rng);
+        SV svl(stap_par_code,rng);
+        SV svr(stap_par_code,rng);
+        sv.update_momenta(rng);
+        svl = sv;
+        svr = sv;
 
         int n ,s, j, vj;
         double p;
@@ -78,10 +62,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         double log_z;
         double UTI_one, UTI_two;
         STAP stap_object(distances,u_crs,subj_array,subj_n,y,diagnostics);
-        bm = GaussianNoise_scalar(rng); 
-        tm = GaussianNoise_scalar(rng);
-        sm = GaussianNoise_scalar(rng);
-        double epsilon_theta = stap_object.FindReasonableEpsilon(beta,theta,sigma,bm,tm,sm,rng);
+        double epsilon_theta = stap_object.FindReasonableEpsilon(sv.beta(0),sv.theta(0),sv.sigma,sv.bm(0),sv.tm(0),sv.sm,rng);
         double epsilon_beta = epsilon_theta;
         double mu_theta = log(10*epsilon_theta);
         double mu_beta = log(10*epsilon_theta);
@@ -89,6 +70,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
 
         Rcpp::Rcout << "Beginning Sampling" << std::endl;
         
+       
         
        for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
            if(diagnostics){
@@ -98,26 +80,13 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
            }
-            bm = GaussianNoise_scalar(rng);
-            tm = GaussianNoise_scalar(rng);
-            sm = GaussianNoise_scalar(rng);
-            log_z = stap_object.sample_u(beta_init,theta_init,sigma_init,bm,tm,sm,rng);
+           sv.update_momenta(rng);
+            log_z = stap_object.sample_u(sv.beta(0),sv.theta(0),sv.sigma,sv.bm(0),sv.tm(0),sv.sm,rng);
             if(diagnostics)
                 Rcpp::Rcout << "log z is : " << log_z << std::endl;
             //equate variables
-            beta_left = beta_init;
-            beta_right = beta_init;
-            theta_left = theta_init;
-            theta_right = theta_init;
-            sigma_left = sigma_init;
-            sigma_right = sigma_init;
-            // equate momenta
-            bmr = bm;
-            bml = bm;
-            tml = tm;
-            tmr = tm;
-            smr = sm;
-            sml = sm;
+            svl = sv;
+            svr = sv;
             n = 1;
             s = 1;
             j = 0;
@@ -129,23 +98,23 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 if(vj == -1){
                     if(diagnostics)
                         Rcpp::Rcout << "Growing Tree to the left " << j << std::endl;
-                    tree.BuildTree(stap_object,beta_left,theta_left,sigma_left,beta_init,theta_init,sigma_init,bml,tml,sml,bm,tm,sm,log_z,vj,j,epsilon_beta,epsilon_theta,rng);
-                    beta_left = tree.get_bl();
-                    bml = tree.get_bml();
-                    theta_left = tree.get_tl();
-                    tml = tree.get_tml();
-                    sigma_left = tree.get_sl();
-                    sml = tree.get_sml();
+                    tree.BuildTree(stap_object,svl.beta(0),svl.theta(0),svl.sigma,sv.beta(0),sv.theta(0),sv.sigma,svl.bm(0),svl.tm(0),svl.sm,sv.bm(0),sv.tm(0),sv.sm,log_z,vj,j,epsilon_beta,epsilon_theta,rng);
+                    svl.beta(0) = tree.get_bl();
+                    svl.bm(0) = tree.get_bml();
+                    svl.theta(0) = tree.get_tl();
+                    svl.tm(0) = tree.get_tml();
+                    svl.sigma = tree.get_sl();
+                    svl.sm = tree.get_sml();
                 }else{
                     if(diagnostics)
                         Rcpp::Rcout << "Growing Tree to the right " << j << std::endl;
-                    tree.BuildTree(stap_object,beta_right,theta_right,sigma_right,beta_init,theta_init,sigma_init,bmr,tmr,smr,bm,tm,sm,log_z,vj,j,epsilon_beta,epsilon_theta,rng);
-                    beta_right = tree.get_br();
-                    bmr = tree.get_bmr();
-                    theta_right = tree.get_tr();
-                    tmr = tree.get_tmr();
-                    sigma_right = tree.get_sr();
-                    smr = tree.get_smr();
+                    tree.BuildTree(stap_object,svr.beta(0),svr.theta(0),svr.sigma,sv.beta(0),sv.theta(0),sv.sigma,svr.bm(0),svr.tm(0),svr.sm,sv.bm(0),sv.tm(0),sv.sm,log_z,vj,j,epsilon_beta,epsilon_theta,rng);
+                    svr.beta(0) = tree.get_br();
+                    svr.bm(0) = tree.get_bmr();
+                    svr.theta(0) = tree.get_tr();
+                    svr.tm(0) = tree.get_tmr();
+                    svr.sigma = tree.get_sr();
+                    svr.sm = tree.get_smr();
                 }
                 if(tree.get_s_prime() == 1){
                     p = std::min(1.0, tree.get_n_prime() / n);
@@ -153,20 +122,17 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                         if(diagnostics)
                             Rcpp::Rcout << "sample accepted" << std::endl;
                         acceptance(iter_ix-1) = 1;
-                        beta = tree.get_beta_new();
-                        theta = tree.get_theta_new();
-                        sigma = tree.get_sigma_new();
-                        beta_out(iter_ix-1) = beta;
-                        theta_out(iter_ix-1) = 10 / (1 + exp(-theta)) ; 
-                        sigma_out(iter_ix-1) = exp(sigma);
+                        beta_out(iter_ix-1) = tree.get_beta_new();
+                        theta_out(iter_ix-1) = tree.get_theta_new(); 
+                        sigma_out(iter_ix-1) = exp(tree.get_sigma_new()); 
                     }
                 }
-                UTI_one = ( ( (beta_right - beta_left) * bmr + (theta_right - theta_left)*tmr) + ((sigma_right - sigma_left) * smr) >=0 ) ;
-                UTI_two = ( ( (beta_right - beta_left) * bml + (theta_right - theta_left)*tml) + ((sigma_right - sigma_left) * sml) >=0 );
+                UTI_one = get_UTI_one(svl,svr);
+                UTI_two = get_UTI_two(svl,svr);
                 n = n + tree.get_n_prime();
                 s = (UTI_one && UTI_two) ? tree.get_s_prime() : 0;
                 j++;
-                if((j == max_treedepth && iter_ix > warmup) || (j>12) ){
+                if(j == max_treedepth){
                     Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
@@ -190,16 +156,18 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
             else 
                 epsilon_theta = epsilon_bar_theta;
                 epsilon_beta = epsilon_bar_beta;
-            
-            beta_init = beta;
-            theta_init = theta;
-            sigma_init = sigma;
             treedepth(iter_ix-1) = j;
-            if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics==false) iter_ix = iter_ix - 1;
+            if(acceptance(iter_ix-1) == 1){
+                sv.beta(0) = beta_out(iter_ix - 1);
+                sv.theta(0) = theta_out(iter_ix - 1);
+                sv.sigma = log(sigma_out(iter_ix -1));
+            }
+            if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
+                iter_ix = iter_ix - 1;
         }
     
     return Rcpp::List::create(Rcpp::Named("beta_samps") =  beta_out,
-                              Rcpp::Named("theta_samps") = theta_out,
+                              Rcpp::Named("theta_samps") = (10 / (1 + exp(-theta_out.array()))),
                               Rcpp::Named("sigma_samps") = sigma_out,
                               Rcpp::Named("alpha") = alpha_out,
                               Rcpp::Named("n_alpha") = nalpha_out,
