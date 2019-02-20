@@ -12,7 +12,9 @@ set.seed(24)
 num_subj <- 300
 num_bef <- 10
 theta_s <- .5
+alpha <- 22
 beta <- 1.2
+beta_bar <- 1
 sigma <- 1
 dists_1 <- matrix(rexp(n = num_subj*num_bef,
                        rate = 1),
@@ -39,7 +41,7 @@ X_bar <- X %>% group_by(id) %>% summarise(MN_Exposure = mean(Exposure))
 
 X_diff <- X %>% left_join(X_bar,by='id') %>% mutate(X_diff = Exposure - MN_Exposure)
 
-y <- beta*X_diff$X_diff + rnorm(n = num_subj*3,
+y <- alpha + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*3,
                          mean = 0,
                          sd = sigma)
 
@@ -103,8 +105,9 @@ subj_n <- rep(1/3,300)
 # sigrslts %>% ggplot(aes(x=sigma,y=energy)) + geom_line() + theme_bw()
 # Ragged Array Distance Structure Sampling --------------------------------
 
+
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <- 500
+iter_max <- 500 
 warmup <- 250
 sink("~/Desktop/Routput.txt")
 tic()
@@ -112,7 +115,7 @@ fit1 <- stap_diffndiff(y = y,
                        u_crs = as.matrix(u_crs),
                        subj_array = subj_mat1,
                        subj_n = subj_n,
-                       stap_par_code = c(0,0,1,0,1),
+                       stap_par_code = c(length(y),0,1,1,1),
                        distances = dists_crs,
                        adapt_delta = .65,
                        warmup = warmup, 
@@ -139,7 +142,3 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
     facet_grid(~Parameters) + ggtitle("Posterior Samples") + 
     theme(strip.background = element_blank()) + ggsave("~/Desktop/stapdnd_progresspic.png",width = 7, height = 5)
 
-
-calculate_sigma_gradient(cur_beta = beta_init,cur_theta = 10/(1+exp(-theta_init)),
-                         cur_sigma = sigma_init,y = y,dists = dists_crs,
-                         u_crs = as.matrix(u_crs),subj_array = subj_mat1,subj_n = subj_n)

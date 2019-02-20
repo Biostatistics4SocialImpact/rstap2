@@ -4,24 +4,10 @@
 class STAP_Tree
 {
     private :
-        double br;
-        double bl;
-        double bml;
-        double bmr;
-        double bmn;
-        double beta_new;
-        double tr;
-        double tl;
-        double tml;
-        double tmr;
-        double tmn;
-        double theta_new;
-        double sigma_new;
-        double smr;
-        double sml;
-        double smn;
-        double sl;
-        double sr;
+        SV svl;
+        SV svr;
+        SV svn;
+        Eigen::ArrayXi spc;
         double n_prime;
         int s_prime;
         double alpha_prime;
@@ -29,67 +15,77 @@ class STAP_Tree
         bool diagnostics;
 
     public:
-        STAP_Tree(const bool& diagnostics_input){
+        STAP_Tree(Eigen::ArrayXi& input_stap_code,
+                  const bool& diagnostics_input,
+                  std::mt19937& rng) : 
+            svl(input_stap_code,rng,diagnostics_input), 
+            svr(input_stap_code,rng,diagnostics_input),
+            svn(input_stap_code,rng,diagnostics_input) {
+            svl.update_momenta(rng);
+            svr.update_momenta(rng);
+            svn.update_momenta(rng);
+            spc = input_stap_code;
             diagnostics = diagnostics_input;
         }
 
         void BuildTree(STAP& stap_object,
-                double beta_proposed,
-                double theta_proposed,
-                double sigma_proposed,
-                double beta_init, 
-                double theta_init, 
-                double sigma_init,
-                double bmp, double tmp, double smp,
-                double bmi, double tmi, double smi,
-                double u,int v, int j,
-                double &epsilon_beta, double &epsilon_theta,
+                SV& sv_proposed,
+                SV& sv_init,
+                double& u,int v, int j,
+                double &epsilon,
                 std::mt19937 &rng);
 
         void Leapfrog(STAP& stap_object,
-                      double& cur_beta,
-                      double& cur_theta, 
-                      double& cur_sigma,
-                      double bm, double tm,double sm,
-                      double epsilon_beta, double epsilon_theta);
+                      SV& sv,
+                      double epsilon);
 
-        const int get_s_prime() const; 
+        const int get_s_prime() const{
+            return(s_prime);
+        }
 
-        const double get_n_prime() const;
+        const double get_n_prime() const{
+            return(n_prime);
+        }
 
-        const double get_alpha_prime() const;
+        const double get_alpha_prime() const{
+            return(alpha_prime);
+        }
 
-        const double get_n_alpha() const;
+        const double get_n_alpha() const{
+            return(n_alpha);
+        }
 
-        const double get_beta_new() const;
-        
-        const double get_bl() const;
+        SV get_svl() const{
+            return(svl);
+        }
 
-        const double get_br() const;
+        SV get_svr() const{
+            return(svr);
+        }
 
-        const double get_bml() const;
-        
-        const double get_bmr() const;
+        SV get_svn() const{
+            return(svn);
+        }
 
-        const double get_theta_new() const;
+        double get_alpha_new() const  {
+            return(svn.alpha);
+        }
 
-        const double get_tr() const;
-        
-        const double get_tl() const;
+        Eigen::VectorXd get_beta_new() const {
+            return(svn.beta);
+        }
 
-        const double get_tml() const;
+        Eigen::VectorXd get_beta_bar_new() const {
+            return(svn.beta_bar);
+        }
 
-        const double get_tmr() const;
+        Eigen::VectorXd get_theta_new_transformed() {
+            return(svn.theta_transformed());
+        }
 
-        const double get_sigma_new() const;
-
-        const double get_sl() const;
-        
-        const double get_sr() const;
-
-        const double get_sml() const;
-
-        const double get_smr() const;
+        const double get_sigma_new_transformed() {
+            return(svn.sigma_transformed());
+        }
 
 };
 
