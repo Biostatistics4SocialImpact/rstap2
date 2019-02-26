@@ -14,6 +14,33 @@ class SG
         Eigen::VectorXd theta_grad;
 };
 
+
+template<typename T = double>
+class Var_Agg
+{
+
+    public:
+        double count;
+        T mean;
+        T M2;
+        T sd;
+        void initialize_first_var(T new_val,T zero){
+            count = 0.0;
+            mean = new_val;
+            M2 = zero;
+        }
+
+        void update_var(T new_val){
+            count += 1.0;
+            T delta = new_val - mean;
+            mean = mean + delta / count;
+            T delta_two = new_val - mean;
+            M2 = M2 + delta * delta_two;
+            sd = M2 / (count - 1);
+        }
+
+};
+
 class SV
 {
     public:
@@ -25,16 +52,16 @@ class SV
         Eigen::VectorXd theta;
         double sigma;
         Eigen::VectorXd dm;
-        Eigen::ArrayXd  var_dm;
         Eigen::VectorXd bm;
-        Eigen::ArrayXd  var_bm;
         Eigen::VectorXd bbm;
-        Eigen::ArrayXd  var_bbm;
         Eigen::VectorXd tm;
-        Eigen::ArrayXd  var_tm;
         Eigen::ArrayXi spc;
-        double var_am;
-        double var_sm;
+        Var_Agg<Eigen::ArrayXd> vd;
+        Var_Agg<Eigen::ArrayXd> vb;
+        Var_Agg<Eigen::ArrayXd> vbb;
+        Var_Agg<Eigen::ArrayXd> vt;
+        Var_Agg<double> va;
+        Var_Agg<double> vs;
         double am;
         double sm;
         bool diagnostics;
@@ -55,25 +82,38 @@ class SV
             }
         }
 
-        void initialize_var(){
-
-            var_dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : Eigen::VectorXd::Ones(dm.size());
-            var_bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : Eigen::VectorXd::Ones(dm.size());
-            var_bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : Eigen::VectorXd::Ones(bbm.size());
-            var_tm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : Eigen::VectorXd::Ones(bbm.size());
-            var_sm = 1.0;
-            var_am = 1.0;
-
-        }
-
         void initialize_momenta(std::mt19937& rng){
-            initialize_var();
+
             sm = GaussianNoise_scalar(rng);
-            am = 0.0;//spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
+            am = 0.0; //spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
             dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
-            bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1): GaussianNoise(beta_bar.size(),rng);
+            bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
             tm = GaussianNoise(theta.size(),rng);
+        }
+
+        void initialize_momenta(int& iter_ix,std::mt19937& rng){
+
+            if(iter_ix == 1){
+                sm = GaussianNoise_scalar(rng);
+                am = 0.0; //spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
+                dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
+                bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
+                bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
+                tm = GaussianNoise(theta.size(),rng);
+            }else{
+                sm = GaussianNoise_scalar(rng);
+                am = 0.0; //spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
+                dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng);
+                bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
+                bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
+                tm = GaussianNoise(theta.size(),rng);
+                am = am * va.sd;
+                dm = dm.array() * vd.sd;
+                bm = bm.array() * vb.sd;
+                bbm = bbm.array() * vbb.sd;
+                tm = tm.array() * vt.sd;
+            }
         }
 
         void print_pars(){
@@ -146,6 +186,57 @@ class SV
             theta = other.theta;
             sigma = other.sigma;
         }
+
+        void update_var(int iter_ix,SV& sv){
+
+            if(iter_ix <=75){
+                if(iter_ix == 1){
+                    va.initialize_first_var(sv.alpha,0.0);
+                    vb.initialize_first_var(sv.beta,Eigen::VectorXd::Zero(sv.beta.size()));
+                    vbb.initialize_first_var(sv.beta_bar,Eigen::VectorXd::Zero(sv.beta_bar.size()));
+                    vt.initialize_first_var(sv.theta,Eigen::VectorXd::Zero(sv.theta.size()));
+                    vs.initialize_first_var(sv.sigma,0.0);
+                }else{
+                    va.update_var(sv.alpha);
+                    vd.update_var(sv.delta);
+                    vb.update_var(sv.beta);
+                    vbb.update_var(sv.beta_bar);
+                    vt.update_var(sv.theta);
+                    vs.update_var(sv.sigma);
+                }
+            }else if( iter_ix < 200){
+              if(iter_ix % 25 == 0){
+                va.initialize_first_var(sv.alpha,0.0);
+                vb.initialize_first_var(sv.beta,Eigen::VectorXd::Zero(sv.beta.size()));
+                vbb.initialize_first_var(sv.beta_bar,Eigen::VectorXd::Zero(sv.beta_bar.size()));
+                vt.initialize_first_var(sv.theta,Eigen::VectorXd::Zero(sv.theta.size()));
+                vs.initialize_first_var(sv.sigma,0.0);
+            }else{
+                va.update_var(sv.alpha);
+                vd.update_var(sv.delta);
+                vb.update_var(sv.beta);
+                vbb.update_var(sv.beta_bar);
+                vt.update_var(sv.theta);
+                vs.update_var(sv.sigma);
+            }
+          }else if(iter_ix <= 250){
+                if(iter_ix == 200){
+                va.initialize_first_var(sv.alpha,0.0);
+                vb.initialize_first_var(sv.beta,Eigen::VectorXd::Zero(sv.beta.size()));
+                vbb.initialize_first_var(sv.beta_bar,Eigen::VectorXd::Zero(sv.beta_bar.size()));
+                vt.initialize_first_var(sv.theta,Eigen::VectorXd::Zero(sv.theta.size()));
+                vs.initialize_first_var(sv.sigma,0.0);
+            }else{
+                va.update_var(sv.alpha);
+                vd.update_var(sv.delta);
+                vb.update_var(sv.beta);
+                vbb.update_var(sv.beta_bar);
+                vt.update_var(sv.theta);
+                vs.update_var(sv.sigma);
+            }
+        }
+
+        }
             
 
         double precision_transformed(){
@@ -166,7 +257,11 @@ class SV
 
         double kinetic_energy(){
             double out = 0;
-            out = dm.dot(dm) + bm.dot(bm) + bbm.dot(bbm) + tm.dot(tm)  + sm * sm + am * am;
+            out = dm.transpose() * vd.sd.matrix().asDiagonal() * dm;
+            out += bm.transpose() * vb.sd.matrix().asDiagonal() * bm;
+            out += bbm.transpose() * vbb.sd.matrix().asDiagonal() * bbm;
+            out += tm.transpose() * vt.sd.matrix().asDiagonal() * tm;
+            out += + (sm * sm) / vs.sd   + (am * am) / va.sd;
             out = out / 2.0;
             return(out);
         }

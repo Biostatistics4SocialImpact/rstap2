@@ -77,7 +77,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
            }
-           sv.initialize_momenta(rng);
+           sv.initialize_momenta(iter_ix, rng);
            log_z = stap_object.sample_u(sv,rng);
             if(diagnostics)
                 Rcpp::Rcout << "log z is : " << log_z << std::endl;
