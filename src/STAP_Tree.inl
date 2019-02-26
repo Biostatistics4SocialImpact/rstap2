@@ -8,13 +8,11 @@ void STAP_Tree::BuildTree(STAP& stap_object,
             Rcpp::Rcout << "Base Case Reached:" << std::endl;
         double total_energy_init = stap_object.calculate_total_energy(sv_init);
         this->Leapfrog(stap_object,sv_proposed,v*epsilon);
-        double total_energy = stap_object.calculate_total_energy(sv_proposed);
+        double total_energy = stap_object.calculate_total_energy(svn);
         n_prime = u <= total_energy ? 1: 0;
         s_prime = u < (1000 + total_energy) ? 1:0;
         svl.copy_SV(svn);
         svr.copy_SV(svn);
-        Rcpp::Rcout << svn.alpha << std::endl;
-        Rcpp::Rcout << svr.alpha << std::endl;
         alpha_prime = std::min(1.0,exp(total_energy - total_energy_init));
         n_alpha = 1.0;
         if(diagnostics){
@@ -72,54 +70,21 @@ void STAP_Tree::BuildTree(STAP& stap_object,
 void STAP_Tree::Leapfrog(STAP& stap_object,SV& sv, double epsilon){
 
     if(diagnostics){
-        Rcpp::Rcout << "Leapfrogging" << std::endl;
-        Rcpp::Rcout << "alpha_init: " << sv.alpha << std::endl;
-        Rcpp::Rcout << "beta_init: " << sv.beta << std::endl;
-        Rcpp::Rcout << "betab_init: " << sv.beta_bar << std::endl;
-        Rcpp::Rcout << "theta_init: " << sv.theta_transformed() << std::endl;
-        Rcpp::Rcout << "sigma_init: " << exp(sv.sigma) << std::endl;
+        Rcpp::Rcout << "Leapfrogging with epsilon" << epsilon << std::endl;
+        Rcpp::Rcout << "Initial Parameters" << std::endl;
+        sv.print_pars();
+        Rcpp::Rcout << "Initial Momenta" << std::endl;
+        sv.print_mom();
     } 
     stap_object.calculate_gradient(sv);
-    double alpha_grad = stap_object.get_alpha_grad();
-    Eigen::VectorXd beta_bar_grad = stap_object.get_beta_bar_grad();
-    Eigen::VectorXd beta_grad = stap_object.get_beta_grad();
-    Eigen::VectorXd theta_grad = stap_object.get_theta_grad();
-    double sigma_grad = stap_object.get_sigma_grad();
+    if(diagnostics)
+        stap_object.print_grads();
+    svn.momenta_leapfrog_other(sv,epsilon,stap_object.sg);
+    svn.momenta_leapfrog_position(epsilon,stap_object.sg);
     if(diagnostics){ 
-        Rcpp::Rcout << "alpha_grad: " << alpha_grad << std::endl;
-        Rcpp::Rcout << "beta_grad: " << beta_grad << std::endl;
-        Rcpp::Rcout << "beta_bar_grad: " << beta_bar_grad << std::endl;
-        Rcpp::Rcout << "theta_grad: " << theta_grad << std::endl;
-        Rcpp::Rcout << "sigma_grad: " << sigma_grad << std::endl;
-    }
-    svn.am = sv.am + epsilon * alpha_grad / 2.0;
-    svn.bm = sv.bm + epsilon * beta_grad / 2.0;
-    svn.bbm = sv.bbm + epsilon * beta_bar_grad / 2.0;
-    svn.tm = sv.tm +  epsilon * theta_grad / 2.0;
-    svn.sm = sv.sm + epsilon * sigma_grad / 2.0;
-    svn.alpha = sv.alpha + epsilon * svn.am;
-    svn.beta = sv.beta + epsilon * svn.bm; // full step
-    svn.beta_bar = sv.beta_bar + epsilon * svn.bbm; 
-    svn.theta = sv.theta +  epsilon * svn.tm;
-    svn.sigma = sv.sigma + epsilon * svn.sm;
-    if(diagnostics){ 
-        Rcpp::Rcout << "beta_momentum_new: " << svn.bm << std::endl;
-        Rcpp::Rcout << "alpha_new: " << svn.alpha << std::endl;
-        Rcpp::Rcout << "beta_new: " << svn.beta << std::endl;
-        Rcpp::Rcout << "beta_bar_new: " << svn.beta_bar << std::endl;
-        Rcpp::Rcout << "theta_new: " << svn.theta_transformed() << std::endl;
-        Rcpp::Rcout << "sigma_new: " << exp(svn.sigma) << std::endl;
+        svn.print_pars();
         Rcpp::Rcout << "\n"  << std::endl;
     }
-    stap_object.calculate_gradient(sv);
-    alpha_grad = stap_object.get_alpha_grad();
-    beta_grad = stap_object.get_beta_grad();
-    beta_bar_grad = stap_object.get_beta_bar_grad();
-    theta_grad = stap_object.get_theta_grad();
-    sigma_grad = stap_object.get_sigma_grad();
-    svn.am = svn.am + epsilon * alpha_grad / 2.0;
-    svn.bm = svn.bm + epsilon * beta_grad / 2.0 ;
-    svn.bbm = svn.bbm + epsilon * beta_bar_grad / 2.0 ;
-    svn.tm = svn.tm +  epsilon * theta_grad / 2.0;
-    svn.sm = svn.sm + epsilon * sigma_grad / 2.0;
+    stap_object.calculate_gradient(svn);
+    svn.momenta_leapfrog_self(epsilon,stap_object.sg);
 }

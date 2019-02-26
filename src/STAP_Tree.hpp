@@ -1,6 +1,5 @@
 #include<random>
 
-
 class STAP_Tree
 {
     private :
@@ -18,12 +17,12 @@ class STAP_Tree
         STAP_Tree(Eigen::ArrayXi& input_stap_code,
                   const bool& diagnostics_input,
                   std::mt19937& rng) : 
-            svl(input_stap_code,rng,diagnostics_input), 
-            svr(input_stap_code,rng,diagnostics_input),
-            svn(input_stap_code,rng,diagnostics_input) {
-            svl.update_momenta(rng);
-            svr.update_momenta(rng);
-            svn.update_momenta(rng);
+            svl(input_stap_code,rng,false), 
+            svr(input_stap_code,rng,false),
+            svn(input_stap_code,rng,false) {
+            svl.initialize_momenta(rng);
+            svr.initialize_momenta(rng);
+            svn.initialize_momenta(rng);
             spc = input_stap_code;
             diagnostics = diagnostics_input;
         }
@@ -79,12 +78,20 @@ class STAP_Tree
             return(svn.beta_bar);
         }
 
+        Eigen::VectorXd get_theta_new() {
+            return(svn.theta);
+        }
+
         Eigen::VectorXd get_theta_new_transformed() {
             return(svn.theta_transformed());
         }
 
         const double get_sigma_new_transformed() {
             return(svn.sigma_transformed());
+        }
+        
+        const double get_sigma_new() {
+            return(svn.sigma);
         }
 
 };
