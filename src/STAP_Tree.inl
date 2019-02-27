@@ -80,7 +80,7 @@ void STAP_Tree::Leapfrog(STAP& stap_object,SV& sv, double epsilon){
     if(diagnostics)
         stap_object.print_grads();
     svn.momenta_leapfrog_other(sv,epsilon,stap_object.sg);
-    svn.momenta_leapfrog_position(epsilon,stap_object.sg);
+    svn.momenta_leapfrog_position(sv,epsilon);
     if(diagnostics){ 
         svn.print_pars();
         Rcpp::Rcout << "Proposed Momenta" << std::endl; 

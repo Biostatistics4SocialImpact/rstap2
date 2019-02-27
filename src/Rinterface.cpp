@@ -53,7 +53,6 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         svl.copy_SV(sv);
         svr.copy_SV(sv);
 
-        
         int n ,s, j, vj;
         double p;
         double epsilon_bar = 1.0;
@@ -77,7 +76,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
            }
-           sv.initialize_momenta(iter_ix, rng);
+           sv.initialize_momenta(rng);
            log_z = stap_object.sample_u(sv,rng);
             if(diagnostics)
                 Rcpp::Rcout << "log z is : " << log_z << std::endl;

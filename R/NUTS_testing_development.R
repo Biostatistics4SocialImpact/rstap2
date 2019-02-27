@@ -81,10 +81,11 @@ subj_n <- rep(1/3,300)
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <- 50
-warmup <- 50
+iter_max <- 500
+warmup <- 250
 sink("~/Desktop/Routput.txt")
 tic()
+
 fit <- stap_diffndiff(y = y,
                        u_crs = as.matrix(u_crs),
                        subj_array = subj_mat1,
@@ -97,6 +98,7 @@ fit <- stap_diffndiff(y = y,
                        max_treedepth = 10,
                        seed = 2431,
                        diagnostics = 1)
+
 toc()
 sink()
 

@@ -206,32 +206,14 @@ double STAP::FindReasonableEpsilon(SV& sv, std::mt19937& rng){
         Rcpp::Rcout << "Find Reasonable Epsilon Start \n " << std::endl;
     double epsilon = 1.0;
     int a;
-    SV sv_prop(sv.spc,rng,false);
+    SV sv_prop(sv.spc,rng,true);
     double ratio,initial_energy,propose_energy;
+    initial_energy = this->calculate_total_energy(sv);
     this->calculate_gradient(sv);
-    if(diagnostics){
-        Rcpp::Rcout << "Initial Parameters:  " << std::endl;
-        sv.print_pars();
-        Rcpp::Rcout << "Initial Gradients: \n " << std::endl;
-        this->print_grads();
-        Rcpp::Rcout << "Initial Momenta: \n " << std::endl;
-        sv.print_mom();
-        Rcpp::Rcout << "-------------------- \n " << std::endl;
-    }
     sv_prop.momenta_leapfrog_other(sv,epsilon,sg);
-    sv_prop.momenta_leapfrog_position(epsilon,sg);
+    sv_prop.momenta_leapfrog_position(sv,epsilon);
     this->calculate_gradient(sv_prop);
     sv_prop.momenta_leapfrog_self(epsilon,sg);
-    if(diagnostics){
-        Rcpp::Rcout << "Proposed Parameters:" << std::endl;
-        sv_prop.print_pars();
-        Rcpp::Rcout << "Proposed Gradients: " << std::endl;
-        this->print_grads();
-        Rcpp::Rcout << "Proposed Momenta: " << std::endl;
-        sv_prop.print_mom();
-        Rcpp::Rcout << "-------------------- \n " << std::endl;
-    }
-    initial_energy = this->calculate_total_energy(sv);
     propose_energy = this->calculate_total_energy(sv_prop);
     ratio =  propose_energy - initial_energy;
     if(diagnostics)
@@ -244,35 +226,20 @@ double STAP::FindReasonableEpsilon(SV& sv, std::mt19937& rng){
         Rcpp::Rcout << "a * ratio: " << a * ratio << std::endl;
         Rcpp::Rcout << "-a * log(2): " << -a * log(2)  << std::endl;
     }
-    int cntr =0;
+    int cntr = 0;
     while ( a * ratio > -a * log(2)){
         epsilon = pow(2,a) * epsilon;
         if(diagnostics)
             Rcpp::Rcout << "epsilon for loop in Find Reasonable Epsilon" << epsilon << std::endl;
         this->calculate_gradient(sv);
         sv_prop.momenta_leapfrog_other(sv,epsilon,sg);
-        sv_prop.momenta_leapfrog_position(epsilon,sg);
-        if(diagnostics){
-            Rcpp::Rcout << "This shouldn't change from before" << std::endl;
-            sv.print_mom();
-            this->print_grads();
-            sv_prop.print_mom();
-        }
+        sv_prop.momenta_leapfrog_position(sv,epsilon);
         this->calculate_gradient(sv_prop);
         sv_prop.momenta_leapfrog_self(epsilon,sg);
-        if(diagnostics){
-            Rcpp::Rcout << "Proposed Parameters:" << std::endl;
-            sv_prop.print_pars();
-            Rcpp::Rcout << "Proposed Gradients: " << std::endl;
-            this->print_grads();
-            Rcpp::Rcout << "Proposed Momenta: " << std::endl;
-            sv_prop.print_mom();
-            Rcpp::Rcout << "-------------------- \n " << std::endl;
-        }
         propose_energy = this->calculate_total_energy(sv_prop);
         ratio =  propose_energy - initial_energy;
         cntr ++;
-        if(cntr > 15)
+        if(cntr > 50)
             break;
     }
     

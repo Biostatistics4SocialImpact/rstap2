@@ -12,22 +12,41 @@ class SG
         Eigen::VectorXd beta_grad;
         Eigen::VectorXd beta_bar_grad;
         Eigen::VectorXd theta_grad;
+        void print_grads(){
+
+            Rcpp::Rcout << "Printing Gradients: " << std::endl;
+            Rcpp::Rcout << "-------------------- " << std::endl;
+            Rcpp::Rcout << "alpha_grad: "  << alpha_grad << std::endl;
+            Rcpp::Rcout << "beta_grad: "  << delta_grad << std::endl;
+            Rcpp::Rcout << "beta_grad: "  << beta_grad << std::endl;
+            Rcpp::Rcout << "beta_bar_grad: "  << beta_bar_grad << std::endl;
+            Rcpp::Rcout << "theta_grad: " << theta_grad << std::endl;
+            Rcpp::Rcout << "sigma_grad: " << sigma_grad << std::endl;
+            Rcpp::Rcout << "-------------------- \n " << std::endl;
+
+        }
 };
 
 
 template<typename T = double>
 class Var_Agg
 {
-
     public:
         double count;
         T mean;
         T M2;
         T sd;
-        void initialize_first_var(T new_val,T zero){
+        void initialize_first_var(int vec_len){
             count = 0.0;
-            mean = new_val;
-            M2 = zero;
+            mean = Eigen::VectorXd::Zero(vec_len); 
+            M2 = Eigen::VectorXd::Zero(vec_len);
+            sd = Eigen::VectorXd::Ones(vec_len);
+        }
+        void initialize_first_var(){
+            count = 0.0;
+            mean = 0.0;
+            M2 = 0.0;
+            sd = 1.0;
         }
 
         void update_var(T new_val){
@@ -80,6 +99,12 @@ class SV
                 Rcpp::Rcout << " Initialized Parameters" << std::endl;
                 print_pars();
             }
+            va.initialize_first_var();
+            vs.initialize_first_var();
+            vd.initialize_first_var(delta.size());
+            vb.initialize_first_var(beta.size());
+            vbb.initialize_first_var(beta_bar.size());
+            vt.initialize_first_var(theta.size());
         }
 
         void initialize_momenta(std::mt19937& rng){
@@ -147,30 +172,56 @@ class SV
         }
 
         void momenta_leapfrog_other(SV& sv,double& epsilon, SG& sg){
+            if(diagnostics){
+                Rcpp::Rcout << "Printing initial momenta " << std::endl;
+                sv.print_mom();
+                Rcpp::Rcout << "Printing Gradients" << std::endl;
+                sg.print_grads();
+            }
             am = sv.am + epsilon * sg.alpha_grad / 2.0 ;
             dm = sv.dm + epsilon * sg.delta_grad / 2.0 ;
             bm = sv.bm + epsilon * sg.beta_grad / 2.0 ;
             bbm = sv.bbm + epsilon * sg.beta_bar_grad / 2.0;
             tm = sv.tm + epsilon * sg.theta_grad / 2.0;
             sm = sv.sm + epsilon * sg.sigma_grad / 2.0;
+            if(diagnostics){
+                Rcpp::Rcout << "Printing half momenta" << std::endl;
+                this->print_mom();
+            }
         }
 
-        void momenta_leapfrog_position(double& epsilon, SG& sg){
-            alpha = am + epsilon * sg.alpha_grad;
-            delta = dm + epsilon * sg.delta_grad;
-            beta = bm + epsilon * sg.beta_grad;
-            beta_bar = bbm + epsilon * sg.beta_bar_grad;
-            theta = tm + epsilon * sg.theta_grad;
-            sigma = sm + epsilon * sg.sigma_grad;
+        void momenta_leapfrog_position(SV& sv, double& epsilon){
+            if(diagnostics){
+                Rcpp::Rcout << "initial positions " << std::endl;
+                this->print_pars();
+            }
+            alpha = sv.alpha + epsilon * am;
+            delta = sv.delta + epsilon * dm;
+            beta = sv.beta + epsilon * bm;
+            beta_bar = sv.beta_bar + epsilon * bbm; 
+            theta = sv.theta + epsilon * tm;
+            sigma = sv.sigma + epsilon * sm;
+            if(diagnostics){
+                Rcpp::Rcout << "updated positions: " << std::endl;
+                this->print_pars();
+            }
         }
 
         void momenta_leapfrog_self(double& epsilon, SG& sg){
+            if(diagnostics){
+                Rcpp::Rcout << "final gradients" << std::endl;
+                sg.print_grads();
+            }
             am = am + epsilon * sg.alpha_grad / 2.0;
             dm = dm + epsilon * sg.delta_grad / 2.0;
             bm = bm + epsilon * sg.beta_grad / 2.0;
             bbm = bbm + epsilon * sg.beta_bar_grad / 2.0;
             tm = tm + epsilon * sg.theta_grad / 2.0;
             sm = sm + epsilon * sg.sigma_grad / 2.0;
+            if(diagnostics){
+                Rcpp::Rcout << "final momenta" << std::endl;
+                this->print_mom();
+            }
         }
 
         void copy_SV(SV other){
@@ -191,11 +242,11 @@ class SV
 
             if(iter_ix <=75){
                 if(iter_ix == 1){
-                    va.initialize_first_var(sv.alpha,0.0);
-                    vb.initialize_first_var(sv.beta,Eigen::VectorXd::Zero(sv.beta.size()));
-                    vbb.initialize_first_var(sv.beta_bar,Eigen::VectorXd::Zero(sv.beta_bar.size()));
-                    vt.initialize_first_var(sv.theta,Eigen::VectorXd::Zero(sv.theta.size()));
-                    vs.initialize_first_var(sv.sigma,0.0);
+                    va.initialize_first_var();
+                    vb.initialize_first_var(beta.size());
+                    vbb.initialize_first_var(beta_bar.size());
+                    vt.initialize_first_var(theta.size());
+                    vs.initialize_first_var();
                 }else{
                     va.update_var(sv.alpha);
                     vd.update_var(sv.delta);
@@ -206,11 +257,11 @@ class SV
                 }
             }else if( iter_ix < 200){
               if(iter_ix % 25 == 0){
-                va.initialize_first_var(sv.alpha,0.0);
-                vb.initialize_first_var(sv.beta,Eigen::VectorXd::Zero(sv.beta.size()));
-                vbb.initialize_first_var(sv.beta_bar,Eigen::VectorXd::Zero(sv.beta_bar.size()));
-                vt.initialize_first_var(sv.theta,Eigen::VectorXd::Zero(sv.theta.size()));
-                vs.initialize_first_var(sv.sigma,0.0);
+                va.initialize_first_var();
+                vb.initialize_first_var(beta.size());
+                vbb.initialize_first_var(beta_bar.size());
+                vt.initialize_first_var(theta.size());
+                vs.initialize_first_var();
             }else{
                 va.update_var(sv.alpha);
                 vd.update_var(sv.delta);
@@ -221,11 +272,11 @@ class SV
             }
           }else if(iter_ix <= 250){
                 if(iter_ix == 200){
-                va.initialize_first_var(sv.alpha,0.0);
-                vb.initialize_first_var(sv.beta,Eigen::VectorXd::Zero(sv.beta.size()));
-                vbb.initialize_first_var(sv.beta_bar,Eigen::VectorXd::Zero(sv.beta_bar.size()));
-                vt.initialize_first_var(sv.theta,Eigen::VectorXd::Zero(sv.theta.size()));
-                vs.initialize_first_var(sv.sigma,0.0);
+                va.initialize_first_var();
+                vb.initialize_first_var(beta.size());
+                vbb.initialize_first_var(beta_bar.size());
+                vt.initialize_first_var(theta.size());
+                vs.initialize_first_var();
             }else{
                 va.update_var(sv.alpha);
                 vd.update_var(sv.delta);
@@ -236,6 +287,16 @@ class SV
             }
         }
 
+        }
+
+        void print_vars(){
+
+            Rcpp::Rcout << "Print variance count parameters" << std::endl;
+            Rcpp::Rcout << "alpha count" << va.count << std::endl;
+            Rcpp::Rcout << "beta count" << vb.count << std::endl;
+            Rcpp::Rcout << "beta bar count" << vbb.count << std::endl;
+            Rcpp::Rcout << "theta count" << vt.count << std::endl;
+            Rcpp::Rcout << "sigma count" << vs.count << std::endl;
         }
             
 
@@ -257,11 +318,11 @@ class SV
 
         double kinetic_energy(){
             double out = 0;
-            out = dm.transpose() * vd.sd.matrix().asDiagonal() * dm;
-            out += bm.transpose() * vb.sd.matrix().asDiagonal() * bm;
-            out += bbm.transpose() * vbb.sd.matrix().asDiagonal() * bbm;
-            out += tm.transpose() * vt.sd.matrix().asDiagonal() * tm;
-            out += + (sm * sm) / vs.sd   + (am * am) / va.sd;
+            out = dm.transpose() * (1.0 / vd.sd).matrix().asDiagonal() * dm;
+            out += bm.transpose() * (1.0 / vb.sd).matrix().asDiagonal() * bm;
+            out += bbm.transpose() * (1.0 / vbb.sd).matrix().asDiagonal() * bbm;
+            out += tm.transpose() * (1.0 / vt.sd).matrix().asDiagonal() * tm;
+            out += (sm * sm) / vs.sd   + (am * am) / va.sd;
             out = out / 2.0;
             return(out);
         }
@@ -333,17 +394,7 @@ class STAP
         double FindReasonableEpsilon(SV& sv, std::mt19937& rng);
 
         void print_grads(){
-
-            Rcpp::Rcout << "Printing Gradients: " << std::endl;
-            Rcpp::Rcout << "-------------------- " << std::endl;
-            Rcpp::Rcout << "alpha_grad: "  << sg.alpha_grad << std::endl;
-            Rcpp::Rcout << "beta_grad: "  << sg.delta_grad << std::endl;
-            Rcpp::Rcout << "beta_grad: "  << sg.beta_grad << std::endl;
-            Rcpp::Rcout << "beta_bar_grad: "  << sg.beta_bar_grad << std::endl;
-            Rcpp::Rcout << "theta_grad: " << sg.theta_grad << std::endl;
-            Rcpp::Rcout << "sigma_grad: " << sg.sigma_grad << std::endl;
-            Rcpp::Rcout << "-------------------- \n " << std::endl;
-
+            sg.print_grads();
         }
 
         Eigen::MatrixXd get_X_prime_diff() const{
