@@ -115,7 +115,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 n = n + tree.get_n_prime();
                 s = (UTI_one && UTI_two) ? tree.get_s_prime() : 0;
                 j++;
-                if(j == max_treedepth && iter_ix > warmup){
+                if(j == max_treedepth){
                     Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
@@ -193,12 +193,12 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.bbm =Eigen::VectorXd::Zero(1);
         sv.tm = Eigen::VectorXd::Zero(1);
         sv.dm = Eigen::VectorXd::Zero(1);
-        sv.theta(0) = log(1/19);
+        sv.theta(0) = log(1.0 / 19.0);
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.theta(0) = par_grid(i);
+            sv.sigma = par_grid(i);
             stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sg.theta_grad(0);
+            grad_grid(i) = stap_object.sg.sigma_grad;
             energy_grid(i) = stap_object.calculate_total_energy(sv);
         }
 

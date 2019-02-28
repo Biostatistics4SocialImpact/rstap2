@@ -69,24 +69,13 @@ void STAP_Tree::BuildTree(STAP& stap_object,
 
 void STAP_Tree::Leapfrog(STAP& stap_object,SV& sv, double epsilon){
 
-    if(diagnostics){
-        Rcpp::Rcout << "Leapfrogging with epsilon" << epsilon << std::endl;
-        Rcpp::Rcout << "Initial Parameters" << std::endl;
-        sv.print_pars();
-        Rcpp::Rcout << "Initial Momenta" << std::endl;
-        sv.print_mom();
-    } 
     stap_object.calculate_gradient(sv);
-    if(diagnostics)
-        stap_object.print_grads();
+
     svn.momenta_leapfrog_other(sv,epsilon,stap_object.sg);
+
     svn.momenta_leapfrog_position(sv,epsilon);
-    if(diagnostics){ 
-        svn.print_pars();
-        Rcpp::Rcout << "Proposed Momenta" << std::endl; 
-        svn.print_mom();
-        Rcpp::Rcout << "\n"  << std::endl;
-    }
+
     stap_object.calculate_gradient(svn);
+
     svn.momenta_leapfrog_self(epsilon,stap_object.sg);
 }

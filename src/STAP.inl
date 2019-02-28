@@ -169,7 +169,7 @@ void STAP::calculate_gradient(SV& sv){
 
     sg.beta_bar_grad = Eigen::VectorXd::Zero(1); // precision * ((y.transpose() - sv.alpha_vec.transpose()) * X_mean - X_mean.transpose() * X_mean * sv.beta_bar - X_mean.transpose() * X_diff * sv.beta);
 
-    sg.sigma_grad = precision * (pow((y - sv.alpha_vec - X_diff * sv.beta - X_mean * sv.beta_bar).array(),2) ).sum() - y.size();
+    sg.sigma_grad = precision * (pow((y - sv.alpha_vec - X_diff * sv.beta).array(),2) ).sum() - y.size();
 
     sg.theta_grad = precision * (y - sv.alpha_vec.transpose() - X_diff * sv.beta).transpose() * X_prime_diff;
     /*
@@ -196,7 +196,7 @@ void STAP::calculate_gradient(SV& sv){
     sg.theta_grad = sg.theta_grad.array() - (1/(1 + exp(sv.theta.array()))) * (1 + log((sv.theta_transformed()).array()));
     sg.theta_grad = sg.theta_grad.array() -  (10 * exp(-sv.theta.array()) * ( exp(sv.theta.array()) - 1) ) / pow((exp(sv.theta.array()) + 1),3); // theta jacobian
     */
-    sg.sigma_grad += (-2 * sv.sigma_sq_transformed()) / (25 + sv.sigma_sq_transformed()) + 1;
+    sg.sigma_grad += - (2 * sv.sigma_transformed()) / (25 + sv.sigma_sq_transformed()) + 1;
 
 }
 

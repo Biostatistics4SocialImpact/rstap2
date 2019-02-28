@@ -17,9 +17,9 @@ class STAP_Tree
         STAP_Tree(Eigen::ArrayXi& input_stap_code,
                   const bool& diagnostics_input,
                   std::mt19937& rng) : 
-            svl(input_stap_code,rng,false), 
-            svr(input_stap_code,rng,false),
-            svn(input_stap_code,rng,false) {
+            svl(input_stap_code,rng,diagnostics_input), 
+            svr(input_stap_code,rng,diagnostics_input),
+            svn(input_stap_code,rng,diagnostics_input) {
             svl.initialize_momenta(rng);
             svr.initialize_momenta(rng);
             svn.initialize_momenta(rng);
