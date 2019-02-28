@@ -171,7 +171,7 @@ void STAP::calculate_gradient(SV& sv){
 
     sg.sigma_grad = precision * (pow((y - sv.alpha_vec - X_diff * sv.beta).array(),2) ).sum() - y.size();
 
-    sg.theta_grad = precision * (y - sv.alpha_vec.transpose() - X_diff * sv.beta).transpose() * X_prime_diff;
+    sg.theta_grad = precision * (y - sv.alpha_vec.transpose() - X_diff * sv.beta).transpose() * X_prime_diff * sv.beta;
     /*
     sg.theta_grad =  (y.transpose() - sv.alpha_vec.transpose()) * X_prime_diff * sv.beta;
 
