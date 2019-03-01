@@ -81,7 +81,7 @@ subj_n <- rep(1/3,300)
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <-1000
+iter_max <- 1000
 warmup <- 500
 sink("~/Desktop/Routput.txt")
 tic()
@@ -111,14 +111,16 @@ tibble(sim_ix = 1:length(fit$epsilons),
 
 
 samples <- tibble(chain=1,
-                  beta = fit$beta_samps,
+                  alpha = fit$alpha_samps,
+                  beta = fit$beta_samps[,1],
                   theta = fit$theta_samps,
                   sigma = fit$sigma_samps,
                   acceptance = fit$acceptance) %>% mutate(ix = 1:n())
 
 samples %>% filter(acceptance==1,ix>warmup) %>% 
-    gather(beta,theta,sigma,key="Parameters",value="Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*1.2 + (Parameters =="theta")*.5 + (Parameters=="sigma")*1) %>% 
+    gather(beta,theta,sigma,alpha,key="Parameters",value="Samples") %>% 
+    mutate(Truth = (Parameters=="beta")*1.2 + (Parameters =="theta")*.5 + (Parameters=="sigma")*1 + 
+           (Parameters=="alpha")*22) %>% 
     ggplot(aes(x=Samples)) + geom_histogram() + theme_bw() + 
     geom_vline(aes(xintercept=Truth),linetype=2) +
     facet_grid(~Parameters) + ggtitle("Posterior Samples") + 
@@ -126,7 +128,7 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
 
 
 samples %>% filter(acceptance==1,ix>warmup) %>%
-    gather(beta,theta,sigma,key= "Parameters", value = "Samples") %>%
+    gather(beta,theta,sigma,alpha,key= "Parameters", value = "Samples") %>%
     group_by(Parameters) %>% summarise(lower = quantile(Samples,0.025), med = median(Samples),
                                            upper = quantile(Samples,0.975))
 

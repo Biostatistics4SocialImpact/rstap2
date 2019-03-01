@@ -34,7 +34,7 @@ double STAP::calculate_total_energy(SV& sv){
         Rcpp::Rcout << "likelihood" << out << std::endl;
     
     // alpha ~N(25,5)  prior
-    out += R::dnorm(sv.alpha,0,5,TRUE);
+    out += R::dnorm(sv.alpha,25,5,TRUE);
 
     // beta ~ N(0,3) prior
     out += R::dnorm(sv.beta(0),0,3,TRUE);//- 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
@@ -187,7 +187,7 @@ void STAP::calculate_gradient(SV& sv){
     */
 
     // prior components
-    sg.alpha_grad += -1.0 / 25 * (sv.alpha); 
+    sg.alpha_grad += -1.0 / 25 * (sv.alpha - 25); 
     sg.beta_grad = sg.beta_grad - 1.0 / 9.0 * sv.beta;
     sg.beta_bar_grad = sg.beta_bar_grad * 0 ; // sg.beta_bar_grad -1.0 / 9.0 * sv.beta_bar;
     sg.theta_grad  = sg.theta_grad - Eigen::VectorXd::Constant(sg.theta_grad.size(),lp_prior_I) - Eigen::VectorXd::Constant(sg.theta_grad.size(),lp_prior_II) ;
