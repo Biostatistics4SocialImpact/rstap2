@@ -81,11 +81,10 @@ subj_n <- rep(1/3,300)
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <-500
-warmup <- 250
+iter_max <-1000
+warmup <- 500
 sink("~/Desktop/Routput.txt")
 tic()
-
 fit <- stap_diffndiff(y = y,
                        u_crs = as.matrix(u_crs),
                        subj_array = subj_mat1,
@@ -96,7 +95,7 @@ fit <- stap_diffndiff(y = y,
                        warmup = warmup, 
                        iter_max = iter_max,
                        max_treedepth = 10,
-                       seed = 1321,
+                       seed = 2341,
                        diagnostics = 1)
 
 toc()
@@ -112,10 +111,10 @@ tibble(sim_ix = 1:length(fit$epsilons),
 
 
 samples <- tibble(chain=1,
-                  beta = fit1$beta_samps,
-                  theta = fit1$theta_samps,
-                  sigma = fit1$sigma_samps,
-                  acceptance = fit1$acceptance) %>% mutate(ix = 1:n())
+                  beta = fit$beta_samps,
+                  theta = fit$theta_samps,
+                  sigma = fit$sigma_samps,
+                  acceptance = fit$acceptance) %>% mutate(ix = 1:n())
 
 samples %>% filter(acceptance==1,ix>warmup) %>% 
     gather(beta,theta,sigma,key="Parameters",value="Samples") %>% 
@@ -126,20 +125,24 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
     theme(strip.background = element_blank()) + ggsave("~/Desktop/stapdnd_progresspic.png",width = 7, height = 5)
 
 
+samples %>% filter(acceptance==1,ix>warmup) %>%
+    gather(beta,theta,sigma,key= "Parameters", value = "Samples") %>%
+    group_by(Parameters) %>% summarise(lower = quantile(Samples,0.025), med = median(Samples),
+                                           upper = quantile(Samples,0.975))
+
 
 # CPP Grad Checks ---------------------------------------------------------
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-
 sink("~/Desktop/Routput.txt")
-thetas <- seq(from = -1, to = 1, by =0.05);
-out <- test_grads(y,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(0,0,1,0,1),seed = 1241)
+thetas <- seq(from = -5, to = 3, by =0.05);
+out <- test_grads(y,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),0,1,0,1),seed = 1241)
 sink()
 
-tibble(theta = exp(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = theta_transform(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
 
-tibble(theta = exp(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = theta_transform(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
 
 
 energy_check <- function(y,dists,theta,sigma,beta,beta_bar,delta,alpha){

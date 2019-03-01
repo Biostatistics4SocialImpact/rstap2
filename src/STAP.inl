@@ -10,8 +10,7 @@ STAP::STAP(Eigen::ArrayXXd& input_dists,
     subj_array = input_subj_array;
     subj_n = input_subj_n;
     y = input_y;
-    X = Eigen::MatrixXd::Zero(y.size(),dists.rows());
-    X_prime = Eigen::MatrixXd::Zero(y.size(),dists.rows());
+    X = Eigen::MatrixXd::Zero(y.size(),dists.rows()); X_prime = Eigen::MatrixXd::Zero(y.size(),dists.rows());
     diagnostics = input_diagnostics;
 
 }
@@ -29,7 +28,7 @@ double STAP::calculate_total_energy(SV& sv){
     out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
 
     // likelihood kernel
-    out += - .5 * sv.precision_transformed() * (pow((y - sv.alpha_vec - X_diff * sv.beta - X_mean * sv.beta_bar).array(),2)).sum();
+    out += - .5 * sv.precision_transformed() * (pow((y - sv.get_alpha_vector() - X_diff * sv.beta - X_mean * sv.beta_bar).array(),2)).sum();
 
     if(diagnostics)
         Rcpp::Rcout << "likelihood" << out << std::endl;
@@ -159,19 +158,20 @@ void STAP::calculate_gradient(SV& sv){
     double lp_prior_I = pow(theta_transformed,-1) * (10 * exp(-theta)) / pow(1 + exp(-theta),2);
     double lp_prior_II = 2 * log(theta_transformed) / ( 1 + exp(-theta));
     double precision = sv.precision_transformed();
+    Eigen::VectorXd alpha_v  = sv.get_alpha_vector() ;
     this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
 
     sg.delta_grad = Eigen::VectorXd::Zero(1);
     // likelihood
     sg.alpha_grad = 0.0; // sv.spc(0) == 0 ? 0 : precision * ( y.sum() - (X_diff * sv.beta).sum()  - (X_mean * sv.beta_bar).sum() - y.size() * sv.alpha);
 
-    sg.beta_grad = precision * ((y.transpose() - sv.alpha_vec.transpose()) * X_diff -  X_diff.transpose() * X_diff * sv.beta - X_diff.transpose() * X_mean * sv.beta_bar );
+    sg.beta_grad = precision * ((y.transpose() - alpha_v.transpose()) * X_diff -  X_diff.transpose() * X_diff * sv.beta - X_diff.transpose() * X_mean * sv.beta_bar );
 
     sg.beta_bar_grad = Eigen::VectorXd::Zero(1); // precision * ((y.transpose() - sv.alpha_vec.transpose()) * X_mean - X_mean.transpose() * X_mean * sv.beta_bar - X_mean.transpose() * X_diff * sv.beta);
 
-    sg.sigma_grad = precision * (pow((y - sv.alpha_vec - X_diff * sv.beta).array(),2) ).sum() - y.size();
+    sg.sigma_grad = precision * (pow((y - alpha_v - X_diff * sv.beta).array(),2) ).sum() - y.size();
 
-    sg.theta_grad = precision * (y - sv.alpha_vec.transpose() - X_diff * sv.beta).transpose() * X_prime_diff * sv.beta;
+    sg.theta_grad = precision * (y - alpha_v.transpose() - X_diff * sv.beta).transpose() * X_prime_diff * sv.beta;
     /*
     sg.theta_grad =  (y.transpose() - sv.alpha_vec.transpose()) * X_prime_diff * sv.beta;
 

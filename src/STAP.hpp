@@ -17,7 +17,7 @@ class SG
             Rcpp::Rcout << "Printing Gradients: " << std::endl;
             Rcpp::Rcout << "-------------------- " << std::endl;
             Rcpp::Rcout << "alpha_grad: "  << alpha_grad << std::endl;
-            Rcpp::Rcout << "beta_grad: "  << delta_grad << std::endl;
+            Rcpp::Rcout << "delta_grad: "  << delta_grad << std::endl;
             Rcpp::Rcout << "beta_grad: "  << beta_grad << std::endl;
             Rcpp::Rcout << "beta_bar_grad: "  << beta_bar_grad << std::endl;
             Rcpp::Rcout << "theta_grad: " << theta_grad << std::endl;
@@ -64,7 +64,6 @@ class SV
 {
     public:
         double alpha;
-        Eigen::VectorXd alpha_vec;
         Eigen::VectorXd delta;
         Eigen::VectorXd beta;
         Eigen::VectorXd beta_bar;
@@ -90,7 +89,6 @@ class SV
             spc = stap_par_code_input;
             sigma = initialize_scalar(rng);
             alpha = 0 ; // spc(0) == 0 ? 0 : initialize_scalar(rng);
-            alpha_vec = Eigen::VectorXd::Ones(spc(0)) * alpha;
             delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
             beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
             beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
@@ -231,6 +229,7 @@ class SV
             bbm = other.bbm;
             tm = other.tm;
             sm = other.sm;
+            alpha = other.alpha;
             delta = other.delta;
             beta = other.beta;
             beta_bar = other.beta_bar;
@@ -299,6 +298,9 @@ class SV
             Rcpp::Rcout << "sigma count" << vs.count << std::endl;
         }
             
+        Eigen::VectorXd get_alpha_vector(){
+            return(Eigen::VectorXd::Ones(spc(0)) * alpha );
+        }
 
         double precision_transformed(){
             return(pow(exp(sigma),-2));

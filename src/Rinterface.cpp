@@ -186,7 +186,6 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.beta_bar(0) = 0;
         sv.beta(0) = 1.2;
         sv.alpha = 0.0;
-        sv.alpha_vec = Eigen::VectorXd::Zero(y.size());
         sv.sigma = 0;
         sv.am = 0;
         sv.bm = Eigen::VectorXd::Zero(1);
