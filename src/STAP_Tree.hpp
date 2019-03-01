@@ -17,14 +17,16 @@ class STAP_Tree
         STAP_Tree(Eigen::ArrayXi& input_stap_code,
                   const bool& diagnostics_input,
                   std::mt19937& rng) : 
-            svl(input_stap_code,rng,diagnostics_input), 
-            svr(input_stap_code,rng,diagnostics_input),
-            svn(input_stap_code,rng,diagnostics_input) {
-            svl.initialize_momenta(rng);
-            svr.initialize_momenta(rng);
-            svn.initialize_momenta(rng);
+            svl(input_stap_code,rng,diagnostics_input,false), 
+            svr(input_stap_code,rng,diagnostics_input,false),
+            svn(input_stap_code,rng,diagnostics_input,false) {
             spc = input_stap_code;
             diagnostics = diagnostics_input;
+            /*
+            svn.initialize_momenta(rng);
+            svl.initialize_momenta(rng);
+            svr.initialize_momenta(rng);
+            */
         }
 
         void BuildTree(STAP& stap_object,
@@ -66,23 +68,23 @@ class STAP_Tree
             return(svn);
         }
 
-        double get_alpha_new() const  {
+        const double get_alpha_new() const  {
             return(svn.alpha);
         }
 
-        Eigen::VectorXd get_beta_new() const {
+        const Eigen::VectorXd get_beta_new() const {
             return(svn.beta);
         }
 
-        Eigen::VectorXd get_beta_bar_new() const {
+        const Eigen::VectorXd get_beta_bar_new() const {
             return(svn.beta_bar);
         }
 
-        Eigen::VectorXd get_theta_new() {
+        const Eigen::VectorXd get_theta_new() {
             return(svn.theta);
         }
 
-        Eigen::VectorXd get_theta_new_transformed() {
+        const Eigen::VectorXd get_theta_new_transformed() {
             return(svn.theta_transformed());
         }
 

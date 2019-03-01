@@ -81,11 +81,10 @@ subj_n <- rep(1/3,300)
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <-500
-warmup <- 250
+iter_max <-700
+warmup <- 500
 sink("~/Desktop/Routput.txt")
 tic()
-
 fit <- stap_diffndiff(y = y,
                        u_crs = as.matrix(u_crs),
                        subj_array = subj_mat1,
@@ -96,7 +95,7 @@ fit <- stap_diffndiff(y = y,
                        warmup = warmup, 
                        iter_max = iter_max,
                        max_treedepth = 10,
-                       seed = 1321,
+                       seed = 2341,
                        diagnostics = 1)
 
 toc()
@@ -131,15 +130,14 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-
 sink("~/Desktop/Routput.txt")
-thetas <- seq(from = -1, to = 1, by =0.05);
-out <- test_grads(y,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(0,0,1,0,1),seed = 1241)
+thetas <- seq(from = -5, to = 3, by =0.05);
+out <- test_grads(y,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),0,1,0,1),seed = 1241)
 sink()
 
-tibble(theta = exp(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = theta_transform(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
 
-tibble(theta = exp(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = theta_transform(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
 
 
 energy_check <- function(y,dists,theta,sigma,beta,beta_bar,delta,alpha){

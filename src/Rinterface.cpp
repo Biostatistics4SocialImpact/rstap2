@@ -37,18 +37,20 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         Eigen::MatrixXd beta_bar_out(iter_max,stap_par_code(3)); 
         Eigen::VectorXd sigma_out(iter_max); 
         Eigen::VectorXd theta_out(iter_max);
+        Eigen::VectorXd ll_out(iter_max);
         alpha_out = Eigen::VectorXd::Zero(iter_max);
         beta_bar_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         beta_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         theta_out = Eigen::VectorXd::Zero(iter_max);
         sigma_out = Eigen::VectorXd::Zero(iter_max);
+        ll_out(iter_max);
         Eigen::VectorXd treedepth(iter_max);
         std::mt19937 rng;
         rng = std::mt19937(seed);
         std::uniform_real_distribution<double> coin_flip(0.0,1.0);
-        SV sv(stap_par_code,rng,diagnostics);
-        SV svl(stap_par_code,rng,diagnostics);
-        SV svr(stap_par_code,rng,diagnostics);
+        SV sv(stap_par_code,rng,diagnostics,diagnostics);
+        SV svl(stap_par_code,rng,diagnostics,false);
+        SV svr(stap_par_code,rng,diagnostics,false);
         sv.initialize_momenta(rng);
         svl.copy_SV(sv);
         svr.copy_SV(sv);
@@ -131,8 +133,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                     Rcpp::Rcout << "tree n alpha " << tree.get_n_alpha() << std::endl;
                     Rcpp::Rcout << "epsilon for next iteration is " << epsilon << std::endl;
                 }
-            }
-            else{ 
+            }else{ 
                 epsilon = epsilon_bar;
             }
             treedepth(iter_ix-1) = j;
@@ -147,6 +148,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 sv.beta = tree.get_beta_new();
                 sv.theta = tree.get_theta_new();
                 sv.sigma = tree.get_sigma_new();
+                ll_out(iter_ix-1) = stap_object.calculate_ll(sv); 
             }
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
                 iter_ix = iter_ix - 1;
@@ -160,7 +162,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                               Rcpp::Named("treedepth") = treedepth,
                               Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilons") = epsilons,
-                              Rcpp::Named("epsilon") = epsilon);
+                              Rcpp::Named("epsilon") = epsilon,
+                              Rcpp::Named("loglik") = ll_out);
    
 }
 
@@ -182,11 +185,10 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         STAP stap_object(distances,u_crs,subj_array,subj_n,y,true);
         Eigen::VectorXd grad_grid(par_grid.size());
         Eigen::VectorXd energy_grid(par_grid.size());
-        SV sv(stap_par_code,rng,true);
+        SV sv(stap_par_code,rng,true,true);
         sv.beta_bar(0) = 0;
         sv.beta(0) = 1.2;
         sv.alpha = 0.0;
-        sv.alpha_vec = Eigen::VectorXd::Zero(y.size());
         sv.sigma = 0;
         sv.am = 0;
         sv.bm = Eigen::VectorXd::Zero(1);
@@ -196,9 +198,9 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.theta(0) = log(1.0 / 19.0);
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.sigma = par_grid(i);
+            sv.theta(0) = par_grid(i);
             stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sg.sigma_grad;
+            grad_grid(i) = stap_object.sg.theta_grad(0);
             energy_grid(i) = stap_object.calculate_total_energy(sv);
         }
 
