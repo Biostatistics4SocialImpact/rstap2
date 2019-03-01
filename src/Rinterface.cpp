@@ -38,8 +38,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         Eigen::VectorXd sigma_out(iter_max); 
         Eigen::VectorXd theta_out(iter_max);
         alpha_out = Eigen::VectorXd::Zero(iter_max);
+        beta_bar_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         beta_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
-        beta_bar_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(3));
         theta_out = Eigen::VectorXd::Zero(iter_max);
         sigma_out = Eigen::VectorXd::Zero(iter_max);
         Eigen::VectorXd treedepth(iter_max);
@@ -185,7 +185,7 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         SV sv(stap_par_code,rng,true);
         sv.beta_bar(0) = 0;
         sv.beta(0) = 1.2;
-        sv.alpha = 22;
+        sv.alpha = 0.0;
         sv.sigma = 0;
         sv.am = 0;
         sv.bm = Eigen::VectorXd::Zero(1);
@@ -195,9 +195,9 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.theta(0) = log(1.0 / 19.0);
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.theta(0) = par_grid(i);
+            sv.sigma = par_grid(i);
             stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sg.theta_grad(0);
+            grad_grid(i) = stap_object.sg.sigma_grad;
             energy_grid(i) = stap_object.calculate_total_energy(sv);
         }
 
