@@ -29,13 +29,13 @@ double STAP::calculate_total_energy(SV& sv){
     out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
 
     // likelihood kernel
-    out += - .5 * sv.precision_transformed() * (pow((y - sv.get_alpha_vec() - X_diff * sv.beta - X_mean * sv.beta_bar).array(),2)).sum();
+    out += - .5 * sv.precision_transformed() * (pow((y - sv.alpha_vec - X_diff * sv.beta - X_mean * sv.beta_bar).array(),2)).sum();
 
     if(diagnostics)
         Rcpp::Rcout << "likelihood" << out << std::endl;
     
-    // alpha ~ N(25,5)  prior
-    out += R::dnorm(sv.alpha,0,5,TRUE);
+    // alpha ~N(25,5)  prior
+    //out += R::dnorm(sv.alpha,0,5,TRUE);
 
     // beta ~ N(0,3) prior
     out += R::dnorm(sv.beta(0),0,3,TRUE);//- 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
@@ -159,25 +159,43 @@ void STAP::calculate_gradient(SV& sv){
     double lp_prior_I = pow(theta_transformed,-1) * (10 * exp(-theta)) / pow(1 + exp(-theta),2);
     double lp_prior_II = 2 * log(theta_transformed) / ( 1 + exp(-theta));
     double precision = sv.precision_transformed();
-    Eigen::VectorXd alpha_v = sv.get_alpha_vec();
     this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
+
     sg.delta_grad = Eigen::VectorXd::Zero(1);
     // likelihood
-    sg.alpha_grad = sv.spc(0) == 0 ? 0 : precision * (y - alpha_v - X_diff * sv.beta).sum();
+    sg.alpha_grad = 0.0; // sv.spc(0) == 0 ? 0 : precision * ( y.sum() - (X_diff * sv.beta).sum()  - (X_mean * sv.beta_bar).sum() - y.size() * sv.alpha);
 
-    sg.beta_grad = precision * (y - alpha_v - X_diff * sv.beta).transpose() * X_diff;  
-    sg.beta_bar_grad = Eigen::VectorXd::Zero(1); // precision * ((y.transpose() - (alpha_v).transpose()) * X_mean - X_mean.transpose() * X_mean * sv.beta_bar - X_mean.transpose() * X_diff * sv.beta);
+    sg.beta_grad = precision * ((y.transpose() - sv.alpha_vec.transpose()) * X_diff -  X_diff.transpose() * X_diff * sv.beta - X_diff.transpose() * X_mean * sv.beta_bar );
 
-    sg.sigma_grad = precision * (pow((y - (alpha_v) - X_diff * sv.beta).array(),2) ).sum() - y.size();
+    sg.beta_bar_grad = Eigen::VectorXd::Zero(1); // precision * ((y.transpose() - sv.alpha_vec.transpose()) * X_mean - X_mean.transpose() * X_mean * sv.beta_bar - X_mean.transpose() * X_diff * sv.beta);
 
-    sg.theta_grad = precision * (y - alpha_v - X_diff * sv.beta).transpose() * X_prime_diff * sv.beta;
+    sg.sigma_grad = precision * (pow((y - sv.alpha_vec - X_diff * sv.beta).array(),2) ).sum() - y.size();
+
+    sg.theta_grad = precision * (y - sv.alpha_vec.transpose() - X_diff * sv.beta).transpose() * X_prime_diff * sv.beta;
+    /*
+    sg.theta_grad =  (y.transpose() - sv.alpha_vec.transpose()) * X_prime_diff * sv.beta;
+
+    sg.theta_grad = sg.theta_grad + (y.transpose() - sv.alpha_vec.transpose()) * X_mean_prime * sv.beta_bar;
+
+    sg.theta_grad = sg.theta_grad  - sv.beta.transpose() * (X_prime_diff.transpose() *  X_diff)   * sv.beta ; 
+
+    sg.theta_grad = sg.theta_grad -   (sv.beta.transpose() * ( (X_prime_diff.transpose() * X_mean).array() +  (X_mean_prime.transpose() * X_diff).array() ).matrix() * sv.beta_bar);
+
+    sg.theta_grad = sg.theta_grad - sv.beta_bar.transpose() * X_mean_prime.transpose() * X_mean * sv.beta_bar;
+
+    sg.theta_grad = sg.theta_grad * precision;
+    */
 
     // prior components
-    sg.alpha_grad += -1.0 / 25 * (sv.alpha); 
+    //sg.alpha_grad += -1.0 / 25 * (sv.alpha - 25); 
     sg.beta_grad = sg.beta_grad - 1.0 / 9.0 * sv.beta;
     sg.beta_bar_grad = sg.beta_bar_grad * 0 ; // sg.beta_bar_grad -1.0 / 9.0 * sv.beta_bar;
     sg.theta_grad  = sg.theta_grad - Eigen::VectorXd::Constant(sg.theta_grad.size(),lp_prior_I) - Eigen::VectorXd::Constant(sg.theta_grad.size(),lp_prior_II) ;
     sg.theta_grad = sg.theta_grad + Eigen::VectorXd::Constant(sg.theta_grad.size(),( 1- theta_exponentiated) / (theta_exponentiated + 1));
+    /*
+    sg.theta_grad = sg.theta_grad.array() - (1/(1 + exp(sv.theta.array()))) * (1 + log((sv.theta_transformed()).array()));
+    sg.theta_grad = sg.theta_grad.array() -  (10 * exp(-sv.theta.array()) * ( exp(sv.theta.array()) - 1) ) / pow((exp(sv.theta.array()) + 1),3); // theta jacobian
+    */
     sg.sigma_grad += - (2 * sv.sigma_transformed()) / (25 + sv.sigma_sq_transformed()) + 1;
 
 }
@@ -188,7 +206,7 @@ double STAP::FindReasonableEpsilon(SV& sv, std::mt19937& rng){
         Rcpp::Rcout << "Find Reasonable Epsilon Start \n " << std::endl;
     double epsilon = 1.0;
     int a;
-    SV sv_prop(sv.spc,rng,true,false);
+    SV sv_prop(sv.spc,rng,true);
     double ratio,initial_energy,propose_energy;
     initial_energy = this->calculate_total_energy(sv);
     this->calculate_gradient(sv);
@@ -228,32 +246,4 @@ double STAP::FindReasonableEpsilon(SV& sv, std::mt19937& rng){
     if(diagnostics)
         Rcpp::Rcout << "Find Reasonable Epsilon End with epsilon =  " <<  epsilon << "\n \n \n " << std::endl;
     return(epsilon);
-}
-
-double STAP::calculate_ll(SV& sv){
-            
-     if(diagnostics){
-        Rcpp::Rcout << " Log Likelihood Calculation \n " << "------------------" << std::endl;
-        sv.print_pars();
-    }
-    
-    double out = 0;
-    this->calculate_X_diff(sv.theta(0));
-
-    out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
-
-    // likelihood kernel
-    out += - .5 * sv.precision_transformed() * (pow((y - sv.get_alpha_vec() - X_diff * sv.beta - X_mean * sv.beta_bar).array(),2)).sum();
-
-    // theta constraints jacobian adjustment 
-    out += 10 /(1+exp(-sv.theta(0))) *(1- 1/(1+exp(-sv.theta(0))));
-
-    // sigma jacobian
-    out += sv.sigma;
-
-    // Incorporate Kinetic Energy
-    out = (isinf(-out) || isnan(out)) ? (-1 * DBL_MAX) : out;
-   
-    return(out);
-
 }

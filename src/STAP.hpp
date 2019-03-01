@@ -64,6 +64,7 @@ class SV
 {
     public:
         double alpha;
+        Eigen::VectorXd alpha_vec;
         Eigen::VectorXd delta;
         Eigen::VectorXd beta;
         Eigen::VectorXd beta_bar;
@@ -84,16 +85,17 @@ class SV
         double sm;
         bool diagnostics;
 
-        SV(Eigen::ArrayXi& stap_par_code_input,std::mt19937& rng,const bool input_diagnostics,const bool print_initial){
+        SV(Eigen::ArrayXi& stap_par_code_input,std::mt19937& rng,const bool input_diagnostics){
             diagnostics = input_diagnostics;
             spc = stap_par_code_input;
             sigma = initialize_scalar(rng);
-            alpha = spc(0) == 0 ? 0 : initialize_scalar(rng);
+            alpha = 0 ; // spc(0) == 0 ? 0 : initialize_scalar(rng);
+            alpha_vec = Eigen::VectorXd::Ones(spc(0)) * alpha;
             delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
             beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
             beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
             theta = initialize_vec(stap_par_code_input(4),rng);
-            if(print_initial){
+            if(diagnostics){
                 Rcpp::Rcout << " Initialized Parameters" << std::endl;
                 print_pars();
             }
@@ -108,7 +110,7 @@ class SV
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
-            am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
+            am = 0.0; //spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
             dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
@@ -191,7 +193,7 @@ class SV
         void momenta_leapfrog_position(SV& sv, double& epsilon){
             if(diagnostics){
                 Rcpp::Rcout << "initial positions " << std::endl;
-                sv.print_pars();
+                this->print_pars();
             }
             alpha = sv.alpha + epsilon * am;
             delta = sv.delta + epsilon * dm;
@@ -296,10 +298,7 @@ class SV
             Rcpp::Rcout << "theta count" << vt.count << std::endl;
             Rcpp::Rcout << "sigma count" << vs.count << std::endl;
         }
-
-        Eigen::VectorXd get_alpha_vec(){
-            return(Eigen::VectorXd::Ones(spc(0)) * alpha);
-        }
+            
 
         double precision_transformed(){
             return(pow(exp(sigma),-2));
@@ -391,8 +390,6 @@ class STAP
         void calculate_X_prime_diff(double& theta,double& cur_theta);
 
         void calculate_gradient(SV& sv);
-
-        double calculate_ll(SV& sv);
 
         double FindReasonableEpsilon(SV& sv, std::mt19937& rng);
 
