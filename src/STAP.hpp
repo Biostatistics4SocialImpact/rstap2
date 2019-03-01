@@ -88,7 +88,7 @@ class SV
             diagnostics = input_diagnostics;
             spc = stap_par_code_input;
             sigma = initialize_scalar(rng);
-            alpha = 0 ; // spc(0) == 0 ? 0 : initialize_scalar(rng);
+            alpha = spc(0) == 0 ? 0 : initialize_scalar(rng);
             delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
             beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
             beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
@@ -108,7 +108,7 @@ class SV
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
-            am = 0.0; //spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
+            am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
             dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
