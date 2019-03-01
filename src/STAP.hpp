@@ -91,7 +91,7 @@ class SV
             alpha = spc(0) == 0 ? 0 : initialize_scalar(rng);
             delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
             beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
-            beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
+            beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(spc(2)) : initialize_vec(stap_par_code_input(3),rng);
             theta = initialize_vec(stap_par_code_input(4),rng);
             if(diagnostics){
                 Rcpp::Rcout << " Initialized Parameters" << std::endl;
@@ -335,6 +335,7 @@ bool get_UTI_one(SV& svl,SV& svr){
 
     double out;
     out = (svr.delta - svl.delta).dot(svl.dm) + (svr.beta - svl.beta).dot(svl.bm) + (svr.beta_bar - svl.beta_bar).dot(svl.bbm) + (svr.theta - svl.theta).dot(svl.tm) + (svr.sigma - svl.sigma) * (svl.sm);
+    out += (svr.alpha - svl.alpha) * (svl.am);
     out = out / 2.0;
 
     return((out >=0));
@@ -343,7 +344,8 @@ bool get_UTI_one(SV& svl,SV& svr){
 bool get_UTI_two(SV& svl,SV& svr){
 
     double out;
-    out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm) + (svr.beta_bar - svl.beta_bar).dot(svl.bbm) +  (svr.theta - svl.theta).dot(svr.tm) + (svr.sigma - svl.sigma) * (svr.sm);
+    out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm) + (svr.beta_bar - svl.beta_bar).dot(svr.bbm) +  (svr.theta - svl.theta).dot(svr.tm) + (svr.sigma - svl.sigma) * (svr.sm);
+    out += (svr.alpha - svl.alpha) * svr.am;
     out = out / 2.0;
 
     return((out >=0));

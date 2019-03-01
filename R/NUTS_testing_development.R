@@ -13,7 +13,7 @@ set.seed(24)
 num_subj <- 500
 num_bef <- 10
 theta_s <- .5
-alpha <- 0
+alpha <- 22
 beta <- 1.2
 beta_bar <- 0
 sigma <- 1
@@ -52,7 +52,7 @@ X_mprime <- X_prime %>% group_by(id) %>%
 
 X_mprime <- X_prime %>% left_join(X_mprime,by='id') %>% mutate(X_diff = X_prime - mn_p)
 
-y <- alpha + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*3,
+y <- alpha + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*4,
                          mean = 0,
                          sd = sigma)
 
@@ -81,15 +81,15 @@ subj_n <- rep(1/3,300)
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <- 1000
-warmup <- 500
+iter_max <- 50
+warmup <- 50
 sink("~/Desktop/Routput.txt")
 tic()
 fit <- stap_diffndiff(y = y,
                        u_crs = as.matrix(u_crs),
                        subj_array = subj_mat1,
                        subj_n = subj_n,
-                       stap_par_code = c(length(y),0,1,0,1),
+                       stap_par_code = c(length(y),0,1,1,1),
                        distances = dists_crs,
                        adapt_delta = .65,
                        warmup = warmup, 
@@ -139,12 +139,12 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
 Rcpp::sourceCpp("src/Rinterface.cpp")
 sink("~/Desktop/Routput.txt")
 thetas <- seq(from = -5, to = 3, by =0.05);
-out <- test_grads(y,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),0,1,0,1),seed = 1241)
+out <- test_grads(y,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),0,1,1,1),seed = 1241)
 sink()
 
-tibble(theta = theta_transform(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = theta_transform(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
 
-tibble(theta = theta_transform(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = theta_transform(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
 
 
 energy_check <- function(y,dists,theta,sigma,beta,beta_bar,delta,alpha){
