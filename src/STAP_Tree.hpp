@@ -70,6 +70,10 @@ class STAP_Tree
             return(svn.alpha);
         }
 
+        Eigen::VectorXd get_delta_new() const{
+            return(svn.delta);
+        }
+
         Eigen::VectorXd get_beta_new() const {
             return(svn.beta);
         }

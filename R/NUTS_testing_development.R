@@ -12,8 +12,10 @@ theta_transform <- function(theta) 10 / (1 + exp(-theta))
 set.seed(24)
 num_subj <- 500
 num_bef <- 10
+Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
+delta <- -.5
 theta_s <- .5
-alpha <- 0
+alpha <- 22
 beta <- 1.2
 beta_bar <- 0
 sigma <- 1
@@ -52,11 +54,11 @@ X_mprime <- X_prime %>% group_by(id) %>%
 
 X_mprime <- X_prime %>% left_join(X_mprime,by='id') %>% mutate(X_diff = X_prime - mn_p)
 
-y <- alpha + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*3,
+y <- alpha + Z * delta + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*3,
                          mean = 0,
                          sd = sigma)
 
-
+Z <- matrix(Z,ncol=1)
 
 # Ragged Array Distance Structure Set up ----------------------------------------------------------------
 
@@ -81,20 +83,20 @@ subj_n <- rep(1/3,300)
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <- 1000
-warmup <- 500
+iter_max <- 500
+warmup <- 250
 sink("~/Desktop/Routput.txt")
 tic()
-fit <- stap_diffndiff(y = y,
+fit <- stap_diffndiff(y = y, Z = Z,
                        u_crs = as.matrix(u_crs),
                        subj_array = subj_mat1,
                        subj_n = subj_n,
-                       stap_par_code = c(length(y),0,1,0,1),
+                       stap_par_code = c(length(y),1,1,0,1),
                        distances = dists_crs,
                        adapt_delta = .65,
                        warmup = warmup, 
                        iter_max = iter_max,
-                       max_treedepth = 10,
+                       max_treedepth = 15,
                        seed = 2341,
                        diagnostics = 1)
 
@@ -112,6 +114,7 @@ tibble(sim_ix = 1:length(fit$epsilons),
 
 samples <- tibble(chain=1,
                   alpha = fit$alpha_samps,
+                  delta = fit$delta_samps[,1],
                   beta = fit$beta_samps[,1],
                   theta = fit$theta_samps,
                   sigma = fit$sigma_samps,
@@ -121,14 +124,15 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
     gather(beta,theta,sigma,alpha,key="Parameters",value="Samples") %>% 
     mutate(Truth = (Parameters=="beta")*1.2 + (Parameters =="theta")*.5 + (Parameters=="sigma")*1 + 
            (Parameters=="alpha")*22) %>% 
-    ggplot(aes(x=Samples)) + geom_histogram() + theme_bw() + 
+    ggplot(aes(x=Samples)) + geom_density() + theme_bw() + 
     geom_vline(aes(xintercept=Truth),linetype=2) +
-    facet_grid(~Parameters) + ggtitle("Posterior Samples") + 
+    facet_wrap(~Parameters,scales="free") + ggtitle("Posterior Samples") + 
     theme(strip.background = element_blank()) + ggsave("~/Desktop/stapdnd_progresspic.png",width = 7, height = 5)
 
 
 samples %>% filter(acceptance==1,ix>warmup) %>%
-    gather(beta,theta,sigma,alpha,key= "Parameters", value = "Samples") %>%
+    gather(beta,delta,theta,sigma,alpha,key= "Parameters", value = "Samples") %>%
+
     group_by(Parameters) %>% summarise(lower = quantile(Samples,0.025), med = median(Samples),
                                            upper = quantile(Samples,0.975))
 
@@ -139,12 +143,12 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
 Rcpp::sourceCpp("src/Rinterface.cpp")
 sink("~/Desktop/Routput.txt")
 thetas <- seq(from = -5, to = 3, by =0.05);
-out <- test_grads(y,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),0,1,0,1),seed = 1241)
+out <- test_grads(y,Z,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),1,1,0,1),seed = 1241)
 sink()
 
-tibble(theta = theta_transform(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = (thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = -.5),linetype = 2) 
 
-tibble(theta = theta_transform(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 0.5),linetype = 2) 
+tibble(theta = (thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept =- .5),linetype = 2) 
 
 
 energy_check <- function(y,dists,theta,sigma,beta,beta_bar,delta,alpha){

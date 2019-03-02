@@ -119,14 +119,14 @@ class SV
 
             if(iter_ix == 1){
                 sm = GaussianNoise_scalar(rng);
-                am = 0.0; //spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
+                am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
                 dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
                 bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
                 bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
                 tm = GaussianNoise(theta.size(),rng);
             }else{
                 sm = GaussianNoise_scalar(rng);
-                am = 0.0; //spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
+                am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
                 dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng);
                 bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
                 bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
@@ -344,7 +344,7 @@ bool get_UTI_one(SV& svl,SV& svr){
 bool get_UTI_two(SV& svl,SV& svr){
 
     double out;
-    out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm) + (svr.beta_bar - svl.beta_bar).dot(svl.bbm) +  (svr.theta - svl.theta).dot(svr.tm) + (svr.sigma - svl.sigma) * (svr.sm);
+    out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm) + (svr.beta_bar - svl.beta_bar).dot(svr.bbm) +  (svr.theta - svl.theta).dot(svr.tm) + (svr.sigma - svl.sigma) * (svr.sm);
     out += (svr.alpha - svl.alpha) * svr.am;
     out = out / 2.0;
 
@@ -365,6 +365,7 @@ class STAP
         Eigen::ArrayXXi u_crs;
         Eigen::MatrixXd subj_array;
         Eigen::ArrayXd subj_n;
+        Eigen::MatrixXd Z;
         Eigen::VectorXd y;
         bool diagnostics;
 
@@ -374,8 +375,11 @@ class STAP
              Eigen::ArrayXXi& input_ucrs,
              Eigen::MatrixXd& input_subj_array,
              Eigen::ArrayXd& input_subj_n,
+             Eigen::MatrixXd& input_Z,
              Eigen::VectorXd& input_y,
              const bool& input_diagnostics);
+
+        double calculate_ll(SV& sv);
 
         double calculate_total_energy(SV& sv);
             

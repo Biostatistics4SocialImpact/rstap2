@@ -17,6 +17,7 @@
 //
 // [[Rcpp::export]]
 Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
+                          Eigen::MatrixXd& Z,
                           Eigen::ArrayXXd& distances,
                           Eigen::ArrayXXi& u_crs,
                           Eigen::MatrixXd& subj_array,
@@ -31,21 +32,29 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
 
         Eigen::VectorXi acceptance(iter_max);
         acceptance = Eigen::VectorXi::Zero(iter_max);
+        // declare placeholder items  for list return
+        Eigen::VectorXd treedepth(iter_max);
         Eigen::VectorXd epsilons(iter_max);
+        Eigen::VectorXd loglik_out(iter_max);
         Eigen::VectorXd alpha_out(iter_max); 
+        Eigen::MatrixXd delta_out(iter_max,Z.cols());
         Eigen::MatrixXd beta_out(iter_max,stap_par_code(2)); 
         Eigen::MatrixXd beta_bar_out(iter_max,stap_par_code(3)); 
         Eigen::VectorXd sigma_out(iter_max); 
         Eigen::VectorXd theta_out(iter_max);
+        // fill objects with zer0s
         alpha_out = Eigen::VectorXd::Zero(iter_max);
+        delta_out = Eigen::VectorXd::Zero(iter_max);
         beta_bar_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         beta_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         theta_out = Eigen::VectorXd::Zero(iter_max);
         sigma_out = Eigen::VectorXd::Zero(iter_max);
-        Eigen::VectorXd treedepth(iter_max);
+        loglik_out = Eigen::VectorXd::Zero(iter_max);
+        // random number generator
         std::mt19937 rng;
         rng = std::mt19937(seed);
         std::uniform_real_distribution<double> coin_flip(0.0,1.0);
+        // declare stap variable classes 
         SV sv(stap_par_code,rng,diagnostics);
         SV svl(stap_par_code,rng,diagnostics);
         SV svr(stap_par_code,rng,diagnostics);
@@ -62,7 +71,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
-        STAP stap_object(distances,u_crs,subj_array,subj_n,y,diagnostics);
+        STAP stap_object(distances,u_crs,subj_array,subj_n,Z,y,diagnostics);
         double epsilon = stap_object.FindReasonableEpsilon(sv,rng);
         double mu_beta = log(10*epsilon);
         
@@ -138,21 +147,25 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
             treedepth(iter_ix-1) = j;
             if(acceptance(iter_ix-1) == 1){
                 alpha_out(iter_ix -1 ) = tree.get_alpha_new();
+                delta_out.row(iter_ix -1 ) = tree.get_delta_new();
                 beta_bar_out.row(iter_ix - 1) = tree.get_beta_bar_new();
                 beta_out.row(iter_ix-1) = tree.get_beta_new();
                 theta_out.row(iter_ix-1) = tree.get_theta_new_transformed(); 
                 sigma_out(iter_ix-1) = tree.get_sigma_new_transformed(); 
                 sv.alpha = tree.get_alpha_new();
+                sv.delta = tree.get_delta_new();
                 sv.beta_bar = tree.get_beta_bar_new();
                 sv.beta = tree.get_beta_new();
                 sv.theta = tree.get_theta_new();
                 sv.sigma = tree.get_sigma_new();
+                loglik_out(iter_ix-1) = stap_object.calculate_ll(sv);
             }
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
                 iter_ix = iter_ix - 1;
        }
 
     return Rcpp::List::create(Rcpp::Named("alpha_samps") = alpha_out, 
+                              Rcpp::Named("delta_samps") = delta_out,
                               Rcpp::Named("beta_samps") =  beta_out,
                               Rcpp::Named("beta_bar_samps") = beta_bar_out,
                               Rcpp::Named("theta_samps") = theta_out,
@@ -160,13 +173,15 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                               Rcpp::Named("treedepth") = treedepth,
                               Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilons") = epsilons,
-                              Rcpp::Named("epsilon") = epsilon);
+                              Rcpp::Named("epsilon") = epsilon,
+                              Rcpp::Named("loglik") = loglik_out);
    
 }
 
      
 //[[Rcpp::export]]
 Rcpp::List test_grads(Eigen::VectorXd& y,
+                      Eigen::MatrixXd& Z,
                       Eigen::VectorXd& beta_bar,
                       Eigen::VectorXd& beta,
                       Eigen::ArrayXXd &distances,
@@ -179,13 +194,13 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
 
         std::mt19937 rng;
         rng = std::mt19937(seed);
-        STAP stap_object(distances,u_crs,subj_array,subj_n,y,true);
+        STAP stap_object(distances,u_crs,subj_array,subj_n,Z,y,true);
         Eigen::VectorXd grad_grid(par_grid.size());
         Eigen::VectorXd energy_grid(par_grid.size());
         SV sv(stap_par_code,rng,true);
-        sv.beta_bar(0) = 0;
+        sv.beta_bar(0) = 0.0;
         sv.beta(0) = 1.2;
-        sv.alpha = 0.0;
+        sv.alpha = 22;
         sv.sigma = 0;
         sv.am = 0;
         sv.bm = Eigen::VectorXd::Zero(1);
@@ -195,9 +210,9 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.theta(0) = log(1.0 / 19.0);
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.sigma = par_grid(i);
+            sv.delta(0) = par_grid(i);
             stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sg.sigma_grad;
+            grad_grid(i) = stap_object.sg.delta_grad(0);
             energy_grid(i) = stap_object.calculate_total_energy(sv);
         }
 
