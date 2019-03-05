@@ -344,7 +344,9 @@ bool get_UTI_one(SV& svl,SV& svr){
 bool get_UTI_two(SV& svl,SV& svr){
 
     double out;
-    out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm) + (svr.beta_bar - svl.beta_bar).dot(svr.bbm) +  (svr.theta - svl.theta).dot(svr.tm) + (svr.sigma - svl.sigma) * (svr.sm);
+    out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm);
+    out += (svr.beta_bar - svl.beta_bar).dot(svr.bbm) +  (svr.theta - svl.theta).dot(svr.tm);
+    out += (svr.sigma - svl.sigma) * (svr.sm);
     out += (svr.alpha - svl.alpha) * svr.am;
     out = out / 2.0;
 

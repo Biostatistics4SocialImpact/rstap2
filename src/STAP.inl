@@ -12,7 +12,8 @@ STAP::STAP(Eigen::ArrayXXd& input_dists,
     subj_n = input_subj_n;
     Z = input_Z;
     y = input_y;
-    X = Eigen::MatrixXd::Zero(y.size(),dists.rows()); X_prime = Eigen::MatrixXd::Zero(y.size(),dists.rows());
+    X = Eigen::MatrixXd::Zero(y.size(),dists.rows()); 
+    X_prime = Eigen::MatrixXd::Zero(y.size(),dists.rows());
     diagnostics = input_diagnostics;
 
 }
@@ -137,7 +138,7 @@ void STAP::calculate_X_diff(double& theta){
 
 void STAP::calculate_X_mean(){
 
-    X_mean =  (subj_array.transpose() * (subj_array * X / 3 ));
+    X_mean =  (subj_array.transpose() * (subj_array * X / 3.0 ));
 }
 
 void STAP::calculate_X_prime(double& theta_tilde,double& theta){ 
@@ -157,8 +158,8 @@ void STAP::calculate_X_prime(double& theta_tilde,double& theta){
 
 void STAP::calculate_X_mean_prime(){ 
 
-    X_mean =  (subj_array.transpose() * ( (subj_array * X) / 3 ));
-    X_mean_prime = (subj_array.transpose() * ((subj_array * X_prime) /3 ));
+    X_mean =  (subj_array.transpose() * ( (subj_array * X) / 3.0 ));
+    X_mean_prime = (subj_array.transpose() * ((subj_array * X_prime) / 3.0 ));
 
 }
 
@@ -191,7 +192,7 @@ void STAP::calculate_gradient(SV& sv){
 
     sg.sigma_grad = precision * (pow((y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta ).array(),2) ).sum() - y.size();
 
-    sg.theta_grad = precision * ((y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta).transpose() * (X_prime_diff * sv.beta - X_mean_prime * sv.beta_bar)).transpose();
+    sg.theta_grad = precision * ((y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta).transpose() * (X_prime_diff * sv.beta + X_mean_prime * sv.beta_bar) ).transpose();
 
     // prior components
     sg.alpha_grad += -1.0 / 25 * (sv.alpha - 25); 
