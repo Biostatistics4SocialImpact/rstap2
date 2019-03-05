@@ -198,9 +198,10 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         Eigen::VectorXd grad_grid(par_grid.size());
         Eigen::VectorXd energy_grid(par_grid.size());
         SV sv(stap_par_code,rng,true);
-        sv.beta_bar(0) = 0.0;
+        sv.beta_bar(0) = 1.0;
         sv.beta(0) = 1.2;
         sv.alpha = 22;
+        sv.delta(0) = -.5;
         sv.sigma = 0;
         sv.am = 0;
         sv.bm = Eigen::VectorXd::Zero(1);
@@ -210,9 +211,9 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.theta(0) = log(1.0 / 19.0);
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.delta(0) = par_grid(i);
+            sv.theta(0) = par_grid(i);
             stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sg.delta_grad(0);
+            grad_grid(i) = stap_object.sg.theta_grad(0);
             energy_grid(i) = stap_object.calculate_total_energy(sv);
         }
 

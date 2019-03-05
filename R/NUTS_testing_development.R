@@ -10,14 +10,14 @@ library(tictoc)
 theta_transform <- function(theta) 10 / (1 + exp(-theta))
 
 set.seed(24)
-num_subj <- 500
+num_subj <- 400
 num_bef <- 10
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
 theta_s <- .5
 alpha <- 22
 beta <- 1.2
-beta_bar <- 0
+beta_bar <- 1
 sigma <- 1
 dists_1 <- matrix(rexp(n = num_subj*num_bef,
                        rate = 1),
@@ -44,15 +44,6 @@ X_bar <- X %>% group_by(id) %>% summarise(MN_Exposure = mean(Exposure))
 
 X_diff <- X %>% left_join(X_bar,by='id') %>% mutate(X_diff = Exposure - MN_Exposure)
 
-
-X_prime <- dists %>% 
-    group_by(id,time) %>% 
-    summarise(X_prime = sum(Distance/10 * exp(-.1*Distance*(1 + exp(-log(1/19))) - log(1/19))))
-
-X_mprime <- X_prime %>% group_by(id) %>%
-    summarise(mn_p = mean(X_prime))
-
-X_mprime <- X_prime %>% left_join(X_mprime,by='id') %>% mutate(X_diff = X_prime - mn_p)
 
 y <- alpha + Z * delta + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*3,
                          mean = 0,
@@ -83,22 +74,22 @@ subj_n <- rep(1/3,300)
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <- 500
-warmup <- 250
+iter_max <- 1500
+warmup <- 500
 sink("~/Desktop/Routput.txt")
 tic()
 fit <- stap_diffndiff(y = y, Z = Z,
                        u_crs = as.matrix(u_crs),
                        subj_array = subj_mat1,
                        subj_n = subj_n,
-                       stap_par_code = c(length(y),1,1,0,1),
+                       stap_par_code = c(length(y),1,1,1,1),
                        distances = dists_crs,
                        adapt_delta = .65,
                        warmup = warmup, 
                        iter_max = iter_max,
-                       max_treedepth = 15,
+                       max_treedepth = 10,
                        seed = 2341,
-                       diagnostics = 1)
+                       diagnostics = 0)
 
 toc()
 sink()
@@ -116,23 +107,24 @@ samples <- tibble(chain=1,
                   alpha = fit$alpha_samps,
                   delta = fit$delta_samps[,1],
                   beta = fit$beta_samps[,1],
+                  beta_bar = fit$beta_bar_samps[,1],
                   theta = fit$theta_samps,
                   sigma = fit$sigma_samps,
                   acceptance = fit$acceptance) %>% mutate(ix = 1:n())
 
 samples %>% filter(acceptance==1,ix>warmup) %>% 
-    gather(beta,theta,sigma,alpha,key="Parameters",value="Samples") %>% 
+    gather(delta,beta,beta_bar,theta,sigma,alpha,key="Parameters",value="Samples") %>% 
     mutate(Truth = (Parameters=="beta")*1.2 + (Parameters =="theta")*.5 + (Parameters=="sigma")*1 + 
+           (Parameters=="delta") *-.5 +  (Parameters=="beta_bar")*1 + 
            (Parameters=="alpha")*22) %>% 
     ggplot(aes(x=Samples)) + geom_density() + theme_bw() + 
     geom_vline(aes(xintercept=Truth),linetype=2) +
-    facet_wrap(~Parameters,scales="free") + ggtitle("Posterior Samples") + 
+    facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
     theme(strip.background = element_blank()) + ggsave("~/Desktop/stapdnd_progresspic.png",width = 7, height = 5)
 
 
 samples %>% filter(acceptance==1,ix>warmup) %>%
     gather(beta,delta,theta,sigma,alpha,key= "Parameters", value = "Samples") %>%
-
     group_by(Parameters) %>% summarise(lower = quantile(Samples,0.025), med = median(Samples),
                                            upper = quantile(Samples,0.975))
 
@@ -141,23 +133,13 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
 
 
 Rcpp::sourceCpp("src/Rinterface.cpp")
+thetas <- seq(from = -5, to =1.0, by =0.05);
 sink("~/Desktop/Routput.txt")
-thetas <- seq(from = -5, to = 3, by =0.05);
-out <- test_grads(y,Z,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),1,1,0,1),seed = 1241)
+out <- test_grads(y,Z,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),1,1,1,1),seed = 1241)
 sink()
 
-tibble(theta = (thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = -.5),linetype = 2) 
+tibble(theta = theta_transform(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
 
-tibble(theta = (thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept =- .5),linetype = 2) 
+tibble(theta = theta_transform(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
 
 
-energy_check <- function(y,dists,theta,sigma,beta,beta_bar,delta,alpha){
-    sigma_tilde <- exp(sigma)
-    theta_tilde <- 10 / (1 + exp(-theta))
-    X <- dists %>% group_by(id,time) %>% summarise(Exposure = sum(exp(-Distance/theta_tilde)))
-    X_bag <- X %>% group_by(id) %>% summarise(X_mean = mean(Exposure))
-    X_diff <- X %>% left_join(X_bar,by='id') %>% mutate(X_diff = Exposure - X_mean)
-    tmp <- sum(dnorm(y,alpha + X_diff$X_diff * beta + X_diff$X_mean *beta_bar,sd = sigma_tilde,TRUE))
-    tmp <- tmp + dnorm(beta,0,3,T) + dcauchy(sigma_tilde,0,5,TRUE) + dlnorm(theta_tilde,0,1,T) 
-    return(tmp)
-}
