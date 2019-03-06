@@ -1,11 +1,23 @@
 Package: rstap2
 Type: Package
-Title: What the package does (short line)
+Title: Spatial Temporal Aggregated Predictor Models via custom No U-Turn Sampler
 Version: 1.0
 Date: 2019-01-14
 Author: Who wrote it
 Maintainer: Who to complain to <yourfault@somewhere.net>
-Description: More about what it does (maybe more than one line)
-License: What license is it under?
-Imports: Rcpp (>= 1.0.0), RcppEigen (>= 0.3.3.5.0)
+Description: Estimates previously compiled STAP regression models using custom C++ code. Users specify models via a custom R sytnax with a formula and data.frame plus additional arguments for priors
+License: GPL(>=3)
+Authors@R: person("Adam","Peterson", ,"atpvyc@umich.edu", c("aut","cre"))
+url: https://biostatistics4socialimpact.github.io/rstap
+BugReports: https://github.com/biostatistics4socialimpact/rstapdnd/issues
+Encoding: UTF-8
+LazyData: true
+ByteCompile: true
+Depends: R (>= 3.4.0), Rcpp(>= 1.0.0)
+Imports: Rcpp (>= 1.0.0), 
+         RcppEigen (>= 0.3.3.5.0),
+         parallel,
+         stats
 LinkingTo: Rcpp, RcppEigen
+RoxygenNote: 6.1.0
+NeedsCompilation: yes

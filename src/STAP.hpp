@@ -84,7 +84,8 @@ class SV
         double sm;
         bool diagnostics;
 
-        SV(Eigen::ArrayXi& stap_par_code_input,std::mt19937& rng,const bool input_diagnostics){
+        SV(Eigen::ArrayXi& stap_par_code_input,
+            std::mt19937& rng,const bool input_diagnostics){
             diagnostics = input_diagnostics;
             spc = stap_par_code_input;
             sigma = initialize_scalar(rng);
@@ -356,27 +357,25 @@ bool get_UTI_two(SV& svl,SV& svr){
 
 class STAP
 {
-    private:
+    public:
         Eigen::MatrixXd X;
-        Eigen::MatrixXd X_mean; 
-        Eigen::MatrixXd X_diff;
         Eigen::MatrixXd X_prime;
-        Eigen::MatrixXd X_mean_prime;
-        Eigen::MatrixXd X_prime_diff;
         Eigen::ArrayXXd dists;
         Eigen::ArrayXXi u_crs;
+        bool diagnostics;
         Eigen::MatrixXd subj_array;
-        Eigen::ArrayXd subj_n;
+        Eigen::MatrixXd subj_n;
         Eigen::MatrixXd Z;
         Eigen::VectorXd y;
-        bool diagnostics;
-
-    public:
+        Eigen::MatrixXd X_mean; 
+        Eigen::MatrixXd X_diff;
+        Eigen::MatrixXd X_mean_prime;
+        Eigen::MatrixXd X_prime_diff;
         SG sg;
         STAP(Eigen::ArrayXXd& input_dists,
              Eigen::ArrayXXi& input_ucrs,
              Eigen::MatrixXd& input_subj_array,
-             Eigen::ArrayXd& input_subj_n,
+             Eigen::MatrixXd& input_subj_n,
              Eigen::MatrixXd& input_Z,
              Eigen::VectorXd& input_y,
              const bool& input_diagnostics);

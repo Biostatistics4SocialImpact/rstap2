@@ -1,14 +1,21 @@
+---
+title: "STAP Difference in Differences Introduction"
+author: "Adam Peterson"
+date: "3/6/2019"
+output: html_document
+---
 
-# Libraries ---------------------------------------------------------------
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
+```{r}
 library(tidyverse)
-library(tictoc)
+library(rstap2)
+```
 
 
-# Data Generation ---------------------------------------------------------
-
-theta_transform <- function(theta) 10 / (1 + exp(-theta))
-
+```{r}
 set.seed(24)
 num_subj <- 400
 num_bef <- 10
@@ -50,10 +57,11 @@ y <- alpha + Z * delta + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rno
                          sd = sigma)
 
 Z <- matrix(Z,ncol=1)
+```
 
-# Ragged Array Distance Structure Set up ----------------------------------------------------------------
 
 
+```{r}
 dists_crs <- matrix(dists %>% arrange(id,time) %>% select(Distance) %>% pull(),nrow=1)
 u_crs <- as_tibble(xtabs(~id + time,data = dists, addNA = T)) %>% 
     mutate(id = as.integer(id),time = as.integer(time)) %>% 
@@ -63,46 +71,29 @@ u_crs <- as_tibble(xtabs(~id + time,data = dists, addNA = T)) %>%
                                                                stop = stop - 1)
 
 subj_mat1 <- as.matrix(Matrix::fac2sparse(as.factor(X_diff$id)))
-subj_n <- rep(1/3,300)
+subj_n <- rep(1/3,num_subj)
+```
 
 
+```{r}
+iter_max <- 550
+warmup <- 300
+fit <- stapdnd_glm2.fit(y = y, z = Z,
+                      u_s = as.matrix(u_crs),
+                      subj_matrix = subj_mat1,
+                      subj_n = matrix(subj_n,ncol=1),
+                      stap_par_code = c(length(y),1,1,1,1),
+                      dists_crs = dists_crs,
+                      adapt_delta = .65,
+                      warmup = warmup, 
+                      iter_max = iter_max,
+                      max_treedepth = 10,
+                      seed = 2341,
+                      diagnostics = 0)
+```
 
 
-
-
-# Ragged Array Distance Structure Sampling --------------------------------
-
-
-Rcpp::sourceCpp("src/Rinterface.cpp")
-iter_max <- 1500
-warmup <- 500
-sink("~/Desktop/Routput.txt")
-tic()
-fit <- stap_diffndiff(y = y, Z = Z,
-                       u_crs = as.matrix(u_crs),
-                       subj_array = subj_mat1,
-                       subj_n = subj_n,
-                       stap_par_code = c(length(y),1,1,1,1),
-                       distances = dists_crs,
-                       adapt_delta = .65,
-                       warmup = warmup, 
-                       iter_max = iter_max,
-                       max_treedepth = 10,
-                       seed = 2341,
-                       diagnostics = 0)
-
-toc()
-sink()
-
-
-tibble(sim_ix = 1:length(fit$epsilons),
-       epsilons = fit$epsilons) %>% ggplot(aes(x=sim_ix,y=log(epsilons))) + geom_line() + theme_bw() + 
-        ggtitle("Epsilon Decay - Log Scale") + ggsave("~/Desktop/epdecay1.png")
-
-tibble(sim_ix = 1:length(fit$epsilons),
-              epsilons = fit$epsilons) %>% ggplot(aes(x=sim_ix,y=(epsilons))) + geom_line() + theme_bw() + ggtitle("Epsilon Decay - unit scale") + ggsave("~/Desktop/epdecay2.png")
-
-
+```{r}
 samples <- tibble(chain=1,
                   alpha = fit$alpha_samps,
                   delta = fit$delta_samps[,1],
@@ -120,26 +111,5 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
     ggplot(aes(x=Samples)) + geom_density() + theme_bw() + 
     geom_vline(aes(xintercept=Truth),linetype=2) +
     facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
-    theme(strip.background = element_blank()) + ggsave("~/Desktop/stapdnd_progresspic.png",width = 7, height = 5)
-
-
-samples %>% filter(acceptance==1,ix>warmup) %>%
-    gather(beta,delta,theta,sigma,alpha,key= "Parameters", value = "Samples") %>%
-    group_by(Parameters) %>% summarise(lower = quantile(Samples,0.025), med = median(Samples),
-                                           upper = quantile(Samples,0.975))
-
-
-# CPP Grad Checks ---------------------------------------------------------
-
-
-Rcpp::sourceCpp("src/Rinterface.cpp")
-thetas <- seq(from = -5, to =1.0, by =0.05);
-sink("~/Desktop/Routput.txt")
-out <- test_grads(y,Z,beta_bar,beta,dists_crs,as.matrix(u_crs),subj_mat1,subj_n,thetas,c(length(y),1,1,1,1),seed = 1241)
-sink()
-
-tibble(theta = theta_transform(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
-
-tibble(theta = theta_transform(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
-
-
+    theme(strip.background = element_blank())
+```

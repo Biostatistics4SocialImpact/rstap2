@@ -1,7 +1,7 @@
 STAP::STAP(Eigen::ArrayXXd& input_dists,
            Eigen::ArrayXXi& input_ucrs,
            Eigen::MatrixXd& input_subj_array,
-           Eigen::ArrayXd& input_subj_n,
+           Eigen::MatrixXd& input_subj_n,
            Eigen::MatrixXd& input_Z,
            Eigen::VectorXd& input_y,
            const bool& input_diagnostics){
@@ -138,7 +138,7 @@ void STAP::calculate_X_diff(double& theta){
 
 void STAP::calculate_X_mean(){
 
-    X_mean =  (subj_array.transpose() * (subj_array * X / 3.0 ));
+    X_mean =  (subj_array.transpose() * ((subj_array * X).array() * subj_n.array() ).matrix() );
 }
 
 void STAP::calculate_X_prime(double& theta_tilde,double& theta){ 
@@ -158,8 +158,8 @@ void STAP::calculate_X_prime(double& theta_tilde,double& theta){
 
 void STAP::calculate_X_mean_prime(){ 
 
-    X_mean =  (subj_array.transpose() * ( (subj_array * X) / 3.0 ));
-    X_mean_prime = (subj_array.transpose() * ((subj_array * X_prime) / 3.0 ));
+    X_mean =  (subj_array.transpose() * ( (subj_array * X).array() * subj_n.array() ).matrix() );
+    X_mean_prime = (subj_array.transpose() * ((subj_array * X_prime).array() * subj_n.array()  ).matrix() );
 
 }
 
@@ -218,7 +218,7 @@ double STAP::FindReasonableEpsilon(SV& sv, std::mt19937& rng){
         Rcpp::Rcout << "Find Reasonable Epsilon Start \n " << std::endl;
     double epsilon = 1.0;
     int a;
-    SV sv_prop(sv.spc,rng,true);
+    SV sv_prop(sv.spc,rng,diagnostics);
     double ratio,initial_energy,propose_energy;
     initial_energy = this->calculate_total_energy(sv);
     this->calculate_gradient(sv);
