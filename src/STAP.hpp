@@ -358,6 +358,7 @@ bool get_UTI_two(SV& svl,SV& svr){
 class STAP
 {
     public:
+        Eigen::VectorXd eta;
         Eigen::MatrixXd X;
         Eigen::MatrixXd X_prime;
         Eigen::ArrayXXd dists;
@@ -397,6 +398,8 @@ class STAP
         void calculate_X_mean_prime();
 
         void calculate_X_prime_diff(double& theta,double& cur_theta);
+
+        void calculate_eta(SV& sv);
 
         void calculate_gradient(SV& sv);
 

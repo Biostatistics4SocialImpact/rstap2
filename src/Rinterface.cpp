@@ -9,6 +9,7 @@
 #include "STAP.hpp"
 #include "STAP_Tree.hpp"
 #include "STAP_glmer.hpp"
+#include "STAP_Tree_glmer.hpp"
 // RcppEigen so that the build process will know what to do
 //
 // [[Rcpp::depends(RcppEigen)]]
@@ -82,8 +83,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
            }else if(iter_ix % (int)round(.1 * iter_max) == 0 ){
-                Rcpp::Rcout << "Beginning of iteration: " << iter_ix << " / " << iter_max << std::endl;
-                Rcpp::Rcout << "-------------------------------------" << std::endl;
+               std::string str = iter_ix <= warmup ? "\t [Warmup] " : "\t [Sampling]";
+                Rcpp::Rcout << "Beginning of iteration: " << iter_ix << " / " << iter_max << str  << std::endl;
            }
            sv.initialize_momenta(rng);
            log_z = stap_object.sample_u(sv,rng);
@@ -281,7 +282,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
-        STAP stap_object(distances,u_crs,subj_array,subj_n,Z,y,diagnostics);
+        STAP_glmer stap_object(distances,u_crs,subj_array,subj_n,Z,W,y,diagnostics);
         double epsilon = stap_object.FindReasonableEpsilon(sv,rng);
         double mu_beta = log(10*epsilon);
         
@@ -305,7 +306,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
             n = 1;
             s = 1;
             j = 0;
-            STAP_Tree tree(stap_par_code,diagnostics,rng);
+            STAP_Tree_glmer tree(stap_par_code,diagnostics,rng);
             while(s == 1){
                 if(diagnostics)
                     Rcpp::Rcout << "\n Growing Tree with j = " << j << std::endl;
@@ -368,6 +369,8 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 sv.beta = tree.get_beta_new();
                 sv.theta = tree.get_theta_new();
                 sv.sigma = tree.get_sigma_new();
+                sv.Sigma = tree.get_Sigma_new();
+                sv.b = tree.get_b_new();
                 loglik_out(iter_ix-1) = stap_object.calculate_ll(sv);
             }
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
@@ -378,8 +381,10 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                               Rcpp::Named("delta_samps") = delta_out,
                               Rcpp::Named("beta_samps") =  beta_out,
                               Rcpp::Named("beta_bar_samps") = beta_bar_out,
+                              Rcpp::Named("b_samps") = b_out,
                               Rcpp::Named("theta_samps") = theta_out,
                               Rcpp::Named("sigma_samps") = sigma_out,
+                              Rcpp::Named("Sigma_samps") = cov_out,
                               Rcpp::Named("treedepth") = treedepth,
                               Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilons") = epsilons,

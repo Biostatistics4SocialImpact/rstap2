@@ -22,15 +22,23 @@ double STAP::calculate_ll(SV& sv){
 
     double out = 0;
     this->calculate_X_diff(sv.theta(0));
+    this->calculate_eta(sv);
 
     out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
 
     // likelihood kernel
-    out += - .5 * sv.precision_transformed() * (pow((y - sv.get_alpha_vector() - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta).array(),2)).sum();
+    out += - .5 * sv.precision_transformed() * (pow((y - eta).array(),2)).sum();
 
     return(out);
 
 }
+
+void STAP::calculate_eta(SV& sv){
+
+    eta = sv.get_alpha_vector() + X_diff * sv.beta + X_mean * sv.beta_bar + Z * sv.delta;
+
+}
+
 
 double STAP::calculate_total_energy(SV& sv){
             
@@ -41,11 +49,12 @@ double STAP::calculate_total_energy(SV& sv){
     
     double out = 0;
     this->calculate_X_diff(sv.theta(0));
+    this->calculate_eta(sv);
 
     out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
 
     // likelihood kernel
-    out += - .5 * sv.precision_transformed() * (pow((y - sv.get_alpha_vector() - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta).array(),2)).sum();
+    out += - .5 * sv.precision_transformed() * (pow((y - eta).array(),2)).sum();
 
     if(diagnostics)
         Rcpp::Rcout << "likelihood" << out << std::endl;
@@ -53,15 +62,18 @@ double STAP::calculate_total_energy(SV& sv){
     // alpha ~N(25,5)  prior
     out += R::dnorm(sv.alpha,25,5,TRUE);
 
+    // delta ~ N(0,3)
     if(sv.spc(1) != 0)
-        out += R::dnorm(sv.delta(0),0,3,TRUE);
+        out += - sv.delta.size() / 2.0 * log(M_PI * 2 * 9) - .5 * 1.0 / 9.0  * sv.delta.dot(sv.delta); 
 
     // beta ~ N(0,3) prior
-    out += R::dnorm(sv.beta(0),0,3,TRUE);//- 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
+    if(sv.spc(1) != 0)
+        out += - sv.beta.size() / 2.0 * log(M_PI * 2 * 9) - .5 * 1.0 / 9.0  * sv.beta.dot(sv.beta); 
 
     // beta_bar ~ N(0,3) prior
     if(sv.spc(3) != 0)
-        out += R::dnorm(sv.beta_bar(0),0,3,TRUE);//- 0.5 * log(M_PI * 18.0) - 1.0 / 18.0 * pow(cur_beta,2);
+        out += - sv.beta_bar.size() / 2.0 * log(M_PI * 2 * 9) - .5 * 1.0 / 9.0  * sv.beta_bar.dot(sv.beta_bar); 
+
     if(diagnostics)
         Rcpp::Rcout << "bb prior " << out << std::endl;
 
@@ -179,22 +191,22 @@ void STAP::calculate_gradient(SV& sv){
     double lp_prior_I = pow(theta_transformed,-1) * (10 * exp(-theta)) / pow(1 + exp(-theta),2);
     double lp_prior_II = 2 * log(theta_transformed) / ( 1 + exp(-theta));
     double precision = sv.precision_transformed();
-    Eigen::VectorXd alpha_v  = sv.get_alpha_vector() ;
     this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
+    this->calculate_eta(sv);
 
-    sg.delta_grad =  precision * ((y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta ).transpose() * Z).transpose();
+    sg.delta_grad =  precision * ((y - eta ).transpose() * Z).transpose();
 
-    sg.alpha_grad = sv.spc(0) == 0 ? 0 : precision * (y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta ).sum();
+    sg.alpha_grad = sv.spc(0) == 0 ? 0 : precision * (y - eta ).sum();
 
-    sg.beta_grad = (precision * ( y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta).transpose() * X_diff).transpose();
+    sg.beta_grad = (precision * ( y - eta).transpose() * X_diff).transpose();
 
-    sg.beta_bar_grad = precision * ((y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta).transpose() * X_mean ).transpose();
+    sg.beta_bar_grad = precision * ((y - eta).transpose() * X_mean ).transpose();
 
-    sg.sigma_grad = precision * (pow((y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta ).array(),2) ).sum() - y.size();
+    sg.sigma_grad = precision * (pow((y - eta ).array(),2) ).sum() - y.size();
 
-    sg.theta_grad = precision * ((y - alpha_v - X_diff * sv.beta - X_mean * sv.beta_bar - Z * sv.delta).transpose() * (X_prime_diff * sv.beta + X_mean_prime * sv.beta_bar) ).transpose();
+    sg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * sv.beta + X_mean_prime * sv.beta_bar) ).transpose();
 
-    // prior components
+    // prior/jacobian components
     sg.alpha_grad += -1.0 / 25 * (sv.alpha - 25); 
     sg.delta_grad = sg. delta_grad - 1.0 / 9.0 * sv.delta;
     sg.beta_grad = sg.beta_grad - 1.0 / 9.0 * sv.beta;
