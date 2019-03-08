@@ -1,3 +1,25 @@
+#include <random>
+Eigen::MatrixXd initialize_matrix(const int& num_rows,const int& num_cols, std::mt19937& rng){
+
+    std::uniform_real_distribution<double> runif(-2,2);
+    Eigen::MatrixXd out(num_rows,num_cols);
+    for(int row_ix = 0; row_ix < num_rows; row_ix ++){
+        for(int col_ix = 0; col_ix < num_cols; col_ix ++)
+            out(row_ix,col_ix) = runif(rng);
+    }
+    return(out);
+}
+
+Eigen::MatrixXd GaussianNoise_mat(const int& num_rows, const int& num_cols, std::mt19937& rng){
+
+    Eigen::MatrixXd out(num_rows,num_cols);
+    for(int row_ix = 0; row_ix < num_rows; row_ix ++){
+        for(int col_ix = 0; col_ix < num_cols; col_ix ++)
+            out(row_ix,col_ix) = GaussianNoise_scalar(rng);
+    }
+    return(out);
+}
+
 class SG_glmer: public SG
 {
     public:
@@ -16,9 +38,30 @@ class SV_glmer: public SV
                 std::mt19937& rng, const bool input_diagnostics) :
             SV(stap_par_code_input,rng,input_diagnostics)
     {
-        b = initialize_vec(spc(4),rng); 
+        b = initialize_matrix(spc(0),1,rng); 
         Sigma = initialize_scalar(rng);
+        if(diagnostics){
+            Rcpp::Rcout << "Subj_sigma " << Sigma << std::endl;
+            Rcpp::Rcout << "b head " << b.block(0,0,5,1) << std::endl;
+        }
     }
+        void print_pars(){
+
+            Rcpp::Rcout << "Printing Parameters... " << std::endl;
+            Rcpp::Rcout << "------------------------ " << std::endl;
+            Rcpp::Rcout << "alpha: " << alpha << std::endl;
+            Rcpp::Rcout << "delta: " << delta << std::endl;
+            Rcpp::Rcout << "beta: " << beta << std::endl;
+            Rcpp::Rcout << "beta_bar: " << beta_bar << std::endl;
+            Rcpp::Rcout << "theta: " << theta << std::endl;
+            Rcpp::Rcout << "theta_transformed: " << 10 / (1 + exp(-theta(0))) << std::endl;
+            Rcpp::Rcout << "sigma: " << sigma << std::endl;
+            Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
+            Rcpp::Rcout << "b : " << b.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "sigma_b : " << exp(Sigma) << std::endl;
+            Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
+
+        }
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
@@ -27,7 +70,7 @@ class SV_glmer: public SV
             dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
-            b_m = GaussianNoise(spc(0),rng);
+            b_m = GaussianNoise_mat(spc(0),1,rng);
             tm = GaussianNoise(theta.size(),rng);
 
         }
@@ -190,6 +233,8 @@ class STAP_glmer: public STAP
         double calculate_glmer_energy(SV_glmer& svg);
 
         void calculate_gradient(SV_glmer& svg);
+
+        double FindReasonableEpsilon(SV_glmer& svg,std::mt19937& rng);
 };
 
 #include "STAP_glmer.inl"

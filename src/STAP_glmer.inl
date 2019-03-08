@@ -28,14 +28,16 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
     
     double out = 0;
     this->calculate_X_diff(svg.theta(0));
+    this->calculate_glmer_eta(svg);
 
     out -= y.size() / 2.0 * log(M_PI * 2 * svg.sigma_sq_transformed() ); 
 
     // likelihood kernel
     out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum();
+    out +=  .5 * (pow(svg.b.array(),2)).sum() / svg.Sigma ;
 
     if(diagnostics)
-        Rcpp::Rcout << "likelihood" << out << std::endl;
+        Rcpp::Rcout << "likelihood " << out << std::endl;
     
     // alpha ~N(25,5)  prior
     out += R::dnorm(svg.alpha,25,5,TRUE);
@@ -111,6 +113,7 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     double precision = svg.precision_transformed();
     Eigen::VectorXd alpha_v  = svg.get_alpha_vector() ;
     this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
+    this->calculate_glmer_eta(svg);
 
     sgg.delta_grad =  precision * ((y - eta ).transpose() * Z).transpose();
 
@@ -125,7 +128,7 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
 
 
-    sgg.b_grad = precision*((y-eta)) + svg.b * svg.mer_precision_transformed() ;
+    sgg.b_grad = precision * ((y-eta)) + svg.b * svg.mer_precision_transformed() ;
     sgg.subj_sig_grad =  -y.size() - svg.b.sum()  * svg.mer_precision_transformed()  ;
 
 
@@ -147,4 +150,53 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     if(svg.spc(3) == 0)
         sgg.beta_bar_grad = Eigen::VectorXd::Zero(1);
 
+}
+
+double STAP_glmer::FindReasonableEpsilon(SV_glmer& sv, std::mt19937& rng){
+
+
+    if(diagnostics)
+        Rcpp::Rcout << "Find Reasonable Epsilon Start \n " << std::endl;
+    double epsilon = 1.0;
+    int a;
+    SV_glmer sv_prop(sv.spc,rng,diagnostics);
+    double ratio,initial_energy,propose_energy;
+    initial_energy = this->calculate_glmer_energy(sv);
+    this->calculate_gradient(sv);
+    sv_prop.momenta_leapfrog_other(sv,epsilon,sgg);
+    sv_prop.momenta_leapfrog_position(sv,epsilon);
+    this->calculate_gradient(sv_prop);
+    sv_prop.momenta_leapfrog_self(epsilon,sgg);
+    propose_energy = this->calculate_glmer_energy(sv_prop);
+    ratio =  propose_energy - initial_energy;
+    if(diagnostics)
+        Rcpp::Rcout << "ratio calc" << propose_energy << " " << initial_energy << " " << propose_energy - initial_energy << std::endl;
+    ratio = isinf(-ratio) ? -DBL_MAX: ratio ;
+    a = ratio > log(.5) ? 1 : -1;
+    if(diagnostics){
+        Rcpp::Rcout << "a: " << a << std::endl;
+        Rcpp::Rcout << "ratio: " << ratio << std::endl;
+        Rcpp::Rcout << "a * ratio: " << a * ratio << std::endl;
+        Rcpp::Rcout << "-a * log(2): " << -a * log(2)  << std::endl;
+    }
+    int cntr = 0;
+    while ( a * ratio > -a * log(2)){
+        epsilon = pow(2,a) * epsilon;
+        if(diagnostics)
+            Rcpp::Rcout << "epsilon for loop in Find Reasonable Epsilon" << epsilon << std::endl;
+        this->calculate_gradient(sv);
+        sv_prop.momenta_leapfrog_other(sv,epsilon,sgg);
+        sv_prop.momenta_leapfrog_position(sv,epsilon);
+        this->calculate_gradient(sv_prop);
+        sv_prop.momenta_leapfrog_self(epsilon,sgg);
+        propose_energy = this->calculate_glmer_energy(sv_prop);
+        ratio =  propose_energy - initial_energy;
+        cntr ++;
+        if(cntr > 50)
+            break;
+    }
+    
+    if(diagnostics)
+        Rcpp::Rcout << "Find Reasonable Epsilon End with epsilon =  " <<  epsilon << "\n \n \n " << std::endl;
+    return(epsilon);
 }

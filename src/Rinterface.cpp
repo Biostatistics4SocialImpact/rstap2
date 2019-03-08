@@ -2,6 +2,7 @@
 
 // we only include RcppEigen.h which pulls Rcpp.h in for us
 #include <RcppEigen.h>
+#include<chrono>
 //#include <cmath>
 
 // via the depends attribute we tell Rcpp to create hooks for
@@ -31,6 +32,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                           const int& seed,
                           const bool& diagnostics) {
 
+        auto start = std::chrono::high_resolution_clock::now();
         Eigen::VectorXi acceptance(iter_max);
         acceptance = Eigen::VectorXi::Zero(iter_max);
         // declare placeholder items  for list return
@@ -164,6 +166,9 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
                 iter_ix = iter_ix - 1;
        }
+       auto stop = std::chrono::high_resolution_clock::now();
+       auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop-start);
+       double sampling_time = duration.count();
 
     return Rcpp::List::create(Rcpp::Named("alpha_samps") = alpha_out, 
                               Rcpp::Named("delta_samps") = delta_out,
@@ -175,7 +180,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                               Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilons") = epsilons,
                               Rcpp::Named("epsilon") = epsilon,
-                              Rcpp::Named("loglik") = loglik_out);
+                              Rcpp::Named("loglik") = loglik_out,
+                              Rcpp::Named("sampling_time") = sampling_time );
    
 }
 
@@ -224,12 +230,13 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
                               Rcpp::Named("grad") = grad_grid);
 }
 
+//[[Rcpp::export]]
 Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                           Eigen::MatrixXd& Z,
                           Eigen::MatrixXd& W,
                           Eigen::ArrayXXd& distances,
                           Eigen::ArrayXXi& u_crs,
-                          Eigen::MatrixXd& subj_array,
+                          Eigen::MatrixXd& subj_matrix,
                           Eigen::MatrixXd& subj_n,
                           Eigen::ArrayXi& stap_par_code,
                           const double& adapt_delta,
@@ -252,7 +259,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         Eigen::VectorXd sigma_out(iter_max); 
         Eigen::VectorXd theta_out(iter_max);
         Eigen::VectorXd b_out(iter_max,W.cols());
-        Eigen::VectorXd cov_out(iter_max,W.cols() == 2 ? 3 : 1);
+        Eigen::VectorXd cov_out(iter_max);
         // fill objects with zer0s
         alpha_out = Eigen::VectorXd::Zero(iter_max);
         delta_out = Eigen::VectorXd::Zero(iter_max);
@@ -282,12 +289,12 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
-        STAP_glmer stap_object(distances,u_crs,subj_array,subj_n,Z,W,y,diagnostics);
+        STAP_glmer stap_object(distances,u_crs,subj_matrix,subj_n,Z,W,y,diagnostics);
         double epsilon = stap_object.FindReasonableEpsilon(sv,rng);
         double mu_beta = log(10*epsilon);
+        /*
         
         Rcpp::Rcout << "Beginning Sampling" << std::endl;
-
        for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
            if(diagnostics){
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
@@ -363,6 +370,8 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 beta_out.row(iter_ix-1) = tree.get_beta_new();
                 theta_out.row(iter_ix-1) = tree.get_theta_new_transformed(); 
                 sigma_out(iter_ix-1) = tree.get_sigma_new_transformed(); 
+                b_out.row(iter_ix-1) = tree.get_b_new();
+                cov_out(iter_ix-1) = tree.get_Sigma_new_transformed();
                 sv.alpha = tree.get_alpha_new();
                 sv.delta = tree.get_delta_new();
                 sv.beta_bar = tree.get_beta_bar_new();
@@ -377,7 +386,8 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 iter_ix = iter_ix - 1;
        }
 
-    return Rcpp::List::create(Rcpp::Named("alpha_samps") = alpha_out, 
+    */
+    return(Rcpp::List::create(Rcpp::Named("alpha_samps") = alpha_out, 
                               Rcpp::Named("delta_samps") = delta_out,
                               Rcpp::Named("beta_samps") =  beta_out,
                               Rcpp::Named("beta_bar_samps") = beta_bar_out,
@@ -389,6 +399,6 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                               Rcpp::Named("acceptance") = acceptance,
                               Rcpp::Named("epsilons") = epsilons,
                               Rcpp::Named("epsilon") = epsilon,
-                              Rcpp::Named("loglik") = loglik_out);
+                              Rcpp::Named("loglik") = loglik_out));
    
 }

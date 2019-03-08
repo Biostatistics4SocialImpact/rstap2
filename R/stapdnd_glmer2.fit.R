@@ -18,7 +18,7 @@
 #' Bayesian inference for stap-glms with group-specific coefficients that have 
 #' unknown covariance matrices with flexible priors.
 #' 
-#' @export
+#'@export
 #'@param y an N-length vector
 #'@param z N x p design matrix of subject specific covariates
 #'@param dists_crs (q_s+q_st) x M matrix of distances between outcome 
@@ -53,5 +53,11 @@ stapdnd_glmer2.fit <- function(y,z,w,
                              prior_theta = lognormal(),
                              prior_sigma = cauchy()){
     
-    
+    out <- stapdnd_glmer(y = y, Z = z, W = w, distances = dists_crs,
+                         u_crs = u_s, subj_matrix = subj_matrix, subj_n = subj_n,
+                         stap_par_code = stap_par_code, adapt_delta = adapt_delta,
+                         iter_max = iter_max, max_treedepth = max_treedepth,
+                         warmup = warmup, seed = seed,
+                         diagnostics = diagnostics)
+    return(out)
 }
