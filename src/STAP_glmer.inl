@@ -24,6 +24,7 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
      if(diagnostics){
         Rcpp::Rcout << " Energy Calculation \n " << "------------------" << std::endl;
         svg.print_pars();
+        svg.print_mom();
     }
     
     double out = 0;
@@ -34,12 +35,12 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
 
     // likelihood kernel
     out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum();
-    out +=  .5 * (pow(svg.b.array(),2)).sum() / svg.Sigma ;
+    out +=  .5 * (pow(svg.b.array(),2)).sum() * svg.mer_precision_transformed() ;
 
     if(diagnostics)
         Rcpp::Rcout << "likelihood " << out << std::endl;
     
-    // alpha ~N(25,5)  prior
+    // alpha ~ N(25,5)  prior
     out += R::dnorm(svg.alpha,25,5,TRUE);
 
     // delta ~ N(0,3)
@@ -74,7 +75,7 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
     out += - svg.b.size() / 2.0 * log(M_PI * 2 * svg.mer_var_transformed()) - .5 * svg.mer_precision_transformed() * (svg.b.transpose() * svg.b).sum();
 
     // exponential prior on sigma_b  and jacobian
-    out += - svg.mer_sd_transformed() + svg.Sigma;
+    out += - R::dexp(svg.mer_sd_transformed(),1,TRUE) + svg.Sigma;
 
     if(diagnostics)
         Rcpp::Rcout << "jacobian I" << out << std::endl;
@@ -99,6 +100,17 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
         Rcpp::Rcout << "Energy out " << out << std::endl;
    
     return(out);
+
+}
+
+double STAP_glmer::sample_u(SV_glmer& svg,std::mt19937& rng){
+
+    if(diagnostics)
+        Rcpp::Rcout << "Sample U Energy Calculation" << std::endl;
+    double energy = this->calculate_glmer_energy(svg);
+    std::uniform_real_distribution<double> runif(0.0,1.0);
+    double log_z = log(runif(rng));
+    return(energy + log_z);
 
 }
 
@@ -130,8 +142,6 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
 
     sgg.b_grad = precision * ((y-eta)) + svg.b * svg.mer_precision_transformed() ;
     sgg.subj_sig_grad =  -y.size() - svg.b.sum()  * svg.mer_precision_transformed()  ;
-
-
 
     // prior components
     sgg.alpha_grad += -1.0 / 25 * (svg.alpha - 25); 

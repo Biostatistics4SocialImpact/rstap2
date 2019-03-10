@@ -292,24 +292,23 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         STAP_glmer stap_object(distances,u_crs,subj_matrix,subj_n,Z,W,y,diagnostics);
         double epsilon = stap_object.FindReasonableEpsilon(sv,rng);
         double mu_beta = log(10*epsilon);
-        /*
         
         Rcpp::Rcout << "Beginning Sampling" << std::endl;
        for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
            if(diagnostics){
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
                 Rcpp::Rcout << "-------------------------------------" << std::endl;
-           }else if(iter_ix % 10 == 0 ){
-                Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
-                Rcpp::Rcout << "-------------------------------------" << std::endl;
+           }else if(iter_ix % (int)round(.1 * iter_max) == 0 ){
+               std::string str = iter_ix <= warmup ? "\t [Warmup] " : "\t [Sampling]";
+                Rcpp::Rcout << "Beginning of iteration: " << iter_ix << " / " << iter_max << str  << std::endl;
            }
            sv.initialize_momenta(rng);
            log_z = stap_object.sample_u(sv,rng);
             if(diagnostics)
                 Rcpp::Rcout << "log z is : " << log_z << std::endl;
             //equate variables
-            svl.copy_SV(sv);
-            svr.copy_SV(sv);
+            svl.copy_SV_glmer(sv);
+            svr.copy_SV_glmer(sv);
             n = 1;
             s = 1;
             j = 0;
@@ -322,12 +321,12 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                     if(diagnostics)
                         Rcpp::Rcout << "Growing Tree to the left " << j << std::endl;
                     tree.BuildTree(stap_object,svl,sv,log_z,vj,j,epsilon,rng);
-                    svl.copy_SV(tree.get_svl());
+                    svl.copy_SV_glmer(tree.get_svl());
                 }else{
                     if(diagnostics)
                         Rcpp::Rcout << "Growing Tree to the right " << j << std::endl;
                     tree.BuildTree(stap_object,svr,sv,log_z,vj,j,epsilon,rng);
-                    svr.copy_SV(tree.get_svr());
+                    svr.copy_SV_glmer(tree.get_svr());
                 }
                 if(tree.get_s_prime() == 1){
                     p = std::min(1.0, tree.get_n_prime() / n);
@@ -370,6 +369,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 beta_out.row(iter_ix-1) = tree.get_beta_new();
                 theta_out.row(iter_ix-1) = tree.get_theta_new_transformed(); 
                 sigma_out(iter_ix-1) = tree.get_sigma_new_transformed(); 
+                Rcpp::Rcout << " what comes out of tree.get_b_new(): " << tree.get_b_new() << std::endl;
                 b_out.row(iter_ix-1) = tree.get_b_new();
                 cov_out(iter_ix-1) = tree.get_Sigma_new_transformed();
                 sv.alpha = tree.get_alpha_new();
@@ -379,14 +379,13 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 sv.theta = tree.get_theta_new();
                 sv.sigma = tree.get_sigma_new();
                 sv.Sigma = tree.get_Sigma_new();
-                sv.b = tree.get_b_new();
+                sv.b.col(0) = tree.get_b_new();
                 loglik_out(iter_ix-1) = stap_object.calculate_ll(sv);
             }
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
                 iter_ix = iter_ix - 1;
        }
 
-    */
     return(Rcpp::List::create(Rcpp::Named("alpha_samps") = alpha_out, 
                               Rcpp::Named("delta_samps") = delta_out,
                               Rcpp::Named("beta_samps") =  beta_out,

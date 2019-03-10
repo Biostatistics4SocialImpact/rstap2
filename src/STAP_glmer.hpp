@@ -57,11 +57,28 @@ class SV_glmer: public SV
             Rcpp::Rcout << "theta_transformed: " << 10 / (1 + exp(-theta(0))) << std::endl;
             Rcpp::Rcout << "sigma: " << sigma << std::endl;
             Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
-            Rcpp::Rcout << "b : " << b.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "b : \n" << b.block(0,0,5,1) << std::endl;
             Rcpp::Rcout << "sigma_b : " << exp(Sigma) << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
         }
+
+        void print_mom(){
+
+            Rcpp::Rcout << "Printing momenta... " << std::endl;
+            Rcpp::Rcout << "------------------------ " << std::endl;
+            Rcpp::Rcout << "am: " << am << std::endl;
+            Rcpp::Rcout << "dm: " << dm << std::endl;
+            Rcpp::Rcout << "bm: " << bm << std::endl;
+            Rcpp::Rcout << "bbm: " << bbm << std::endl;
+            Rcpp::Rcout << "tm: " << tm << std::endl;
+            Rcpp::Rcout << "sm: " << sm << std::endl;
+            Rcpp::Rcout << "S_m: " << S_m << std::endl;
+            Rcpp::Rcout << "b_m: \n" << b_m.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
+
+        }
+
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
@@ -231,6 +248,8 @@ class STAP_glmer: public STAP
         double calculate_glmer_ll(SV_glmer& svg);
 
         double calculate_glmer_energy(SV_glmer& svg);
+
+        double sample_u(SV_glmer& svg,std::mt19937& rng);
 
         void calculate_gradient(SV_glmer& svg);
 

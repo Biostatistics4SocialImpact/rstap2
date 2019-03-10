@@ -81,8 +81,8 @@ W <- t(subj_mat1)
 
 ```{r}
 devtools::load_all(recompile=T)
-iter_max <- 1 
-warmup <- 1
+iter_max <- 5 
+warmup <- 5
 sink("~/Desktop/Routput.txt")
 fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
                       u_s = as.matrix(u_crs),

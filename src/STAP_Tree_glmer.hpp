@@ -96,8 +96,8 @@ class STAP_Tree_glmer
             return(svn.sigma);
         }
 
-        Eigen::MatrixXd get_b_new() {
-            return(svn.b);
+        Eigen::VectorXd get_b_new() {
+            return(svn.b.col(0));
         }
 
         double get_Sigma_new() {

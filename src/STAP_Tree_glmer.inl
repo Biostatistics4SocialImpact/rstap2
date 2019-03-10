@@ -6,13 +6,13 @@ void STAP_Tree_glmer::BuildTree(STAP_glmer& stap_object,
     if( j == 0 ){
         if(diagnostics)
             Rcpp::Rcout << "Base Case Reached:" << std::endl;
-        double total_energy_init = stap_object.calculate_total_energy(sv_init);
+        double total_energy_init = stap_object.calculate_glmer_energy(sv_init);
         this->Leapfrog(stap_object,sv_proposed,v*epsilon);
-        double total_energy = stap_object.calculate_total_energy(svn);
+        double total_energy = stap_object.calculate_glmer_energy(svn);
         n_prime = u <= total_energy ? 1: 0;
         s_prime = u < (1000 + total_energy) ? 1:0;
-        svl.copy_SV(svn);
-        svr.copy_SV(svn);
+        svl.copy_SV_glmer(svn);
+        svr.copy_SV_glmer(svn);
         alpha_prime = std::min(1.0,exp(total_energy - total_energy_init));
         n_alpha = 1.0;
         if(diagnostics){
@@ -38,23 +38,23 @@ void STAP_Tree_glmer::BuildTree(STAP_glmer& stap_object,
         s_prime = subtree.get_s_prime();
         n_prime = subtree.get_n_prime();
         n_alpha = subtree.get_n_alpha();
-        svn.copy_SV(subtree.get_svn());
-        svl.copy_SV(subtree.get_svl());
-        svr.copy_SV(subtree.get_svr());
+        svn.copy_SV_glmer(subtree.get_svn());
+        svl.copy_SV_glmer(subtree.get_svl());
+        svr.copy_SV_glmer(subtree.get_svr());
         alpha_prime = subtree.get_alpha_prime();
         if(subtree.get_s_prime() == 1){
             STAP_Tree_glmer subsubtree(spc,diagnostics,rng);
             if( v == -1 ){
                 subsubtree.BuildTree(stap_object,svl,sv_init,u,v,j-1,epsilon,rng);
-                svl.copy_SV(subsubtree.get_svl());
+                svl.copy_SV_glmer(subsubtree.get_svl());
             }else{
                 subsubtree.BuildTree(stap_object,svr,sv_init,u,v,j-1,epsilon,rng);
-                svr.copy_SV(subsubtree.get_svr());
+                svr.copy_SV_glmer(subsubtree.get_svr());
             }
             double p = (subsubtree.get_n_prime() == 0.0 && subtree.get_n_prime() ==0.0) ? 0.0 : subsubtree.get_n_prime() / (subtree.get_n_prime() + subsubtree.get_n_prime());
             std::uniform_real_distribution<double> die(0.0,1.0);
             if(die(rng) <= p)
-                svn.copy_SV(subsubtree.get_svn());
+                svn.copy_SV_glmer(subsubtree.get_svn());
             alpha_prime = subsubtree.get_alpha_prime() + subtree.get_alpha_prime();
             n_alpha = subtree.get_n_alpha() +  subsubtree.get_n_alpha();
             double UTI_one = get_UTI_one(svl,svr);
