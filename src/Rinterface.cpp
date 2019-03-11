@@ -1,7 +1,6 @@
 // -*- mode: C++; c-indent-level: 4; c-basic-offset: 4; indent-tabs-mode: nil; -*-
 
-// we only include RcppEigen.h which pulls Rcpp.h in for us
-#include <RcppEigen.h>
+// we only include RcppEigen.h which pulls Rcpp.h in for us #include <RcppEigen.h>
 #include<chrono>
 //#include <cmath>
 
@@ -258,16 +257,18 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         Eigen::MatrixXd beta_bar_out(iter_max,stap_par_code(3)); 
         Eigen::VectorXd sigma_out(iter_max); 
         Eigen::VectorXd theta_out(iter_max);
-        Eigen::VectorXd b_out(iter_max,W.cols());
+        Eigen::MatrixXd b_out(iter_max,W.cols());
         Eigen::VectorXd cov_out(iter_max);
         // fill objects with zer0s
         alpha_out = Eigen::VectorXd::Zero(iter_max);
+        b_out = Eigen::MatrixXd::Zero(iter_max,W.cols());
         delta_out = Eigen::VectorXd::Zero(iter_max);
         beta_bar_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         beta_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         theta_out = Eigen::VectorXd::Zero(iter_max);
         sigma_out = Eigen::VectorXd::Zero(iter_max);
         loglik_out = Eigen::VectorXd::Zero(iter_max);
+        cov_out = Eigen::VectorXd::Zero(iter_max);
         // random number generator
         std::mt19937 rng;
         rng = std::mt19937(seed);
@@ -369,7 +370,6 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 beta_out.row(iter_ix-1) = tree.get_beta_new();
                 theta_out.row(iter_ix-1) = tree.get_theta_new_transformed(); 
                 sigma_out(iter_ix-1) = tree.get_sigma_new_transformed(); 
-                Rcpp::Rcout << " what comes out of tree.get_b_new(): " << tree.get_b_new() << std::endl;
                 b_out.row(iter_ix-1) = tree.get_b_new();
                 cov_out(iter_ix-1) = tree.get_Sigma_new_transformed();
                 sv.alpha = tree.get_alpha_new();
@@ -379,7 +379,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 sv.theta = tree.get_theta_new();
                 sv.sigma = tree.get_sigma_new();
                 sv.Sigma = tree.get_Sigma_new();
-                sv.b.col(0) = tree.get_b_new();
+                sv.b = tree.get_b_new();
                 loglik_out(iter_ix-1) = stap_object.calculate_ll(sv);
             }
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
@@ -401,3 +401,60 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                               Rcpp::Named("loglik") = loglik_out));
    
 }
+
+//[[Rcpp::export]]
+Rcpp::List test_grads_glmer(Eigen::VectorXd& y,
+                      Eigen::MatrixXd& Z,
+                      Eigen::MatrixXd& W,
+                      Eigen::MatrixXd& true_b,
+                      Eigen::VectorXd& beta_bar,
+                      Eigen::VectorXd& beta,
+                      Eigen::ArrayXXd &distances,
+                      Eigen::ArrayXXi &u_crs,
+                      Eigen::MatrixXd &subj_array,
+                      Eigen::MatrixXd &subj_n,
+                      Eigen::VectorXd &par_grid,
+                      Eigen::ArrayXi& stap_par_code,
+                      const int seed) {
+
+        std::mt19937 rng;
+        rng = std::mt19937(seed);
+        STAP_glmer stap_object(distances,u_crs,subj_array,subj_n,Z,W,y,true);
+        Eigen::VectorXd grad_grid(par_grid.size());
+        Eigen::VectorXd energy_grid(par_grid.size());
+        SV_glmer sv(stap_par_code,rng,true);
+        sv.beta_bar(0) = 1.0;
+        sv.beta(0) = 1.2;
+        sv.alpha = 22;
+        sv.delta(0) = -.5;
+        sv.sigma = 0;
+        sv.Sigma = 0;
+        sv.b = true_b;
+        sv.am = 0;
+        sv.bm = Eigen::VectorXd::Zero(1);
+        sv.bbm = Eigen::VectorXd::Zero(1);
+        sv.tm = Eigen::VectorXd::Zero(1);
+        sv.dm = Eigen::VectorXd::Zero(1);
+        sv.b_m = Eigen::VectorXd::Zero(true_b.rows());
+        sv.S_m = 0.0;
+        sv.theta(0) = log(1.0 / 19.0);
+        Rcpp::Rcout << "b : " << std::endl;
+        Rcpp::Rcout << (sv.b).block(0,0,5,1) << std::endl;
+        Rcpp::Rcout << "b transformed: " << std::endl;
+        Rcpp::Rcout <<  (W * sv.b).block(0,0,5,1) << std::endl;
+        stap_object.calculate_glmer_eta(sv);
+        Rcpp::Rcout << stap_object.eta.head(5) << std::endl;
+
+        for(int i = 0; i < par_grid.size(); i++){
+            sv.theta(0) = par_grid(i);
+            stap_object.calculate_gradient(sv);
+            grad_grid(i) = stap_object.sgg.theta_grad(0);
+            energy_grid(i) = stap_object.calculate_glmer_ll(sv);
+        }
+
+
+
+    return Rcpp::List::create(Rcpp::Named("energy") = energy_grid,
+                              Rcpp::Named("grad") = grad_grid);
+}
+

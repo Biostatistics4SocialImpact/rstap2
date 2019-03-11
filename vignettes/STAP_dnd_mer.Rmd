@@ -20,7 +20,7 @@ num_subj <- 300
 num_bef <- 10
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
-theta_s <- 2.5
+theta_s <- 0.5
 alpha <- 22
 beta <- 1.2
 beta_bar <- 1
@@ -81,21 +81,40 @@ W <- t(subj_mat1)
 
 ```{r}
 devtools::load_all(recompile=T)
-iter_max <- 5 
-warmup <- 5
+iter_max <- 10 
+warmup <- 10
 sink("~/Desktop/Routput.txt")
 fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
                       u_s = as.matrix(u_crs),
                       subj_matrix = subj_mat1,
-                      subj = matrix(subj_n,ncol=1),
-                      stap_par_code = c(length(y),1,1,1,1),
+                      subj_n = matrix(subj_n,ncol=1),
+                      stap_par_code = c(length(y),1,1,1,num_subj),
                       dists_crs = dists_crs,
                       adapt_delta = .65,
                       warmup = warmup, 
                       iter_max = iter_max,
-                      max_treedepth = 10,
+                      max_treedepth = 8,
                       seed = 2341,
                       diagnostics = 1)
 sink()
 ```
+
+```{r}
+thetas <- seq(from = -5, to =2.0, by =0.05);
+sink("~/Desktop/Routput.txt")
+out <- test_grads_glmer(y,Z,W,as.matrix(X_bar$subj_int,ncol=1),beta_bar,beta,
+                  dists_crs,as.matrix(u_crs),
+                  subj_mat1,as.matrix(subj_n,ncol=1),thetas,
+                  c(length(y),1,1,1,num_subj),
+                  seed = 1241)
+sink()
+
+transform_thetas <- function(x) 10 / (1 + exp(-x))
+tibble(theta = transform_thetas(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
+
+tibble(theta = transform_thetas(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
+
+```
+
+
 

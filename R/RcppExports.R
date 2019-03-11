@@ -13,3 +13,7 @@ stapdnd_glmer <- function(y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_p
     .Call(`_rstap2_stapdnd_glmer`, y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics)
 }
 
+test_grads_glmer <- function(y, Z, W, true_b, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed) {
+    .Call(`_rstap2_test_grads_glmer`, y, Z, W, true_b, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed)
+}
+

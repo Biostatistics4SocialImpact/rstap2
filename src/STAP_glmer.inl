@@ -1,6 +1,6 @@
 void STAP_glmer::calculate_glmer_eta(SV_glmer& svg){
 
-    eta = svg.get_alpha_vector() + X_diff * svg.beta + X_mean * svg.beta_bar + Z * svg.delta + svg.b * W;
+    eta = svg.get_alpha_vector() + X_diff * svg.beta + X_mean * svg.beta_bar + Z * svg.delta + (W * svg.b) * Eigen::VectorXd::Ones(1) ;
 }
 
 
@@ -13,8 +13,10 @@ double STAP_glmer::calculate_glmer_ll(SV_glmer& svg){
     out -= y.size() / 2.0 * log(M_PI * 2 * svg.sigma_sq_transformed() ); 
 
     // likelihood kernel
-    out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum() +  .5 * (pow(svg.b.array(),2)).sum() / svg.Sigma ;
+    out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum();
 
+    out += - svg.b.size() / 2.0 * log(M_PI * 2 * svg.mer_var_transformed());
+    out += - .5 * svg.mer_precision_transformed() * (pow( svg.b.array(),2)).sum();
 
     return(out);
 }
@@ -35,7 +37,6 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
 
     // likelihood kernel
     out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum();
-    out +=  .5 * (pow(svg.b.array(),2)).sum() * svg.mer_precision_transformed() ;
 
     if(diagnostics)
         Rcpp::Rcout << "likelihood " << out << std::endl;
@@ -59,7 +60,7 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
         Rcpp::Rcout << "bb prior " << out << std::endl;
 
     // log(theta) ~ N(1,1) prior 
-    out +=  R::dlnorm(svg.theta_transformed()(0),0,1,TRUE);//-log(transformed_theta) - .5 * log( 2.0 * M_PI) - .5 * pow(log(transformed_theta) - 1,2);
+    out +=  R::dlnorm(svg.theta_transformed()(0),0,1,TRUE);
     if(diagnostics)
         Rcpp::Rcout << "theta prior " << out << std::endl;
 
@@ -72,22 +73,14 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
     out += 10 /(1+exp(-svg.theta(0))) * (1- 1/(1+exp(-svg.theta(0))));
 
     //glmer normal density
-    out += - svg.b.size() / 2.0 * log(M_PI * 2 * svg.mer_var_transformed()) - .5 * svg.mer_precision_transformed() * (svg.b.transpose() * svg.b).sum();
+    out += - svg.b.size() / 2.0 * log(M_PI * 2 * svg.mer_var_transformed()) - .5 * svg.mer_precision_transformed() * (pow( svg.b.array(),2)).sum();
 
     // exponential prior on sigma_b  and jacobian
-    out += - R::dexp(svg.mer_sd_transformed(),1,TRUE) + svg.Sigma;
+    out += R::dexp(svg.mer_sd_transformed(),1,TRUE);
 
-    if(diagnostics)
-        Rcpp::Rcout << "jacobian I" << out << std::endl;
-    
     
     // sigma jacobian
-    out += svg.sigma;
-
-    if(diagnostics){
-        Rcpp::Rcout << "jacobian II" << out << std::endl;
-        Rcpp::Rcout << "------------------ \n " << std::endl;
-    }
+    out += svg.sigma + svg.Sigma;
 
     // Incorporate Kinetic Energy
     out -= svg.kinetic_energy_glmer();
@@ -127,25 +120,25 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
     this->calculate_glmer_eta(svg);
 
-    sgg.delta_grad =  precision * ((y - eta ).transpose() * Z).transpose();
+    sgg.delta_grad =  precision * ((y - eta).transpose() * Z).transpose();
 
     sgg.alpha_grad = svg.spc(0) == 0 ? 0 : precision * (y - eta).sum();
 
-    sgg.beta_grad = (precision * ( y - eta).transpose() * X_diff).transpose();
+    sgg.beta_grad = (precision * (y - eta).transpose() * X_diff).transpose();
 
-    sgg.beta_bar_grad = precision * ((y - eta).transpose() * X_mean ).transpose();
+    sgg.beta_bar_grad = precision * ( (y - eta).transpose() * X_mean ).transpose();
 
     sgg.sigma_grad = precision * (pow((y - eta ).array(),2) ).sum() - y.size();
 
     sgg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
 
+    sgg.b_grad = precision * (W.transpose() * (y-eta))   + svg.b * svg.mer_precision_transformed();
 
-    sgg.b_grad = precision * ((y-eta)) + svg.b * svg.mer_precision_transformed() ;
-    sgg.subj_sig_grad =  -y.size() - svg.b.sum()  * svg.mer_precision_transformed()  ;
+    sgg.subj_sig_grad =   (pow(svg.b.array(),2)).sum()  * svg.mer_precision_transformed() - svg.b.size();
 
     // prior components
     sgg.alpha_grad += -1.0 / 25 * (svg.alpha - 25); 
-    sgg.delta_grad = sgg. delta_grad - 1.0 / 9.0 * svg.delta;
+    sgg.delta_grad = sgg.delta_grad - 1.0 / 9.0 * svg.delta;
     sgg.beta_grad = sgg.beta_grad - 1.0 / 9.0 * svg.beta;
     sgg.beta_bar_grad = sgg.beta_bar_grad - 1.0 / 9.0 * svg.beta_bar;
     sgg.theta_grad  = sgg.theta_grad - Eigen::VectorXd::Constant(sgg.theta_grad.size(),lp_prior_I) - Eigen::VectorXd::Constant(sgg.theta_grad.size(),lp_prior_II) ;

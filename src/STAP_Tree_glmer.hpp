@@ -97,7 +97,7 @@ class STAP_Tree_glmer
         }
 
         Eigen::VectorXd get_b_new() {
-            return(svn.b.col(0));
+            return(svn.b);
         }
 
         double get_Sigma_new() {

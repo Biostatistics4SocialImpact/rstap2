@@ -25,6 +25,21 @@ class SG_glmer: public SG
     public:
         Eigen::MatrixXd b_grad;
         double subj_sig_grad; 
+        void print_grads(){
+
+            Rcpp::Rcout << "Printing Gradients: " << std::endl;
+            Rcpp::Rcout << "-------------------- " << std::endl;
+            Rcpp::Rcout << "alpha_grad: "  << alpha_grad << std::endl;
+            Rcpp::Rcout << "delta_grad: "  << delta_grad << std::endl;
+            Rcpp::Rcout << "beta_grad: "  << beta_grad << std::endl;
+            Rcpp::Rcout << "beta_bar_grad: "  << beta_bar_grad << std::endl;
+            Rcpp::Rcout << "theta_grad: " << theta_grad << std::endl;
+            Rcpp::Rcout << "sigma_grad: " << sigma_grad << std::endl;
+            Rcpp::Rcout << "subj_b_grad: " << b_grad.size() << std::endl;
+            Rcpp::Rcout << "subj_b_grad: " << b_grad.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "subj_sigma_grad: " << subj_sig_grad << std::endl;
+            Rcpp::Rcout << "-------------------- \n " << std::endl;
+        }
 };
 
 class SV_glmer: public SV
@@ -38,7 +53,7 @@ class SV_glmer: public SV
                 std::mt19937& rng, const bool input_diagnostics) :
             SV(stap_par_code_input,rng,input_diagnostics)
     {
-        b = initialize_matrix(spc(0),1,rng); 
+        b = initialize_matrix(spc(4),1,rng); 
         Sigma = initialize_scalar(rng);
         if(diagnostics){
             Rcpp::Rcout << "Subj_sigma " << Sigma << std::endl;
@@ -58,7 +73,8 @@ class SV_glmer: public SV
             Rcpp::Rcout << "sigma: " << sigma << std::endl;
             Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
             Rcpp::Rcout << "b : \n" << b.block(0,0,5,1) << std::endl;
-            Rcpp::Rcout << "sigma_b : " << exp(Sigma) << std::endl;
+            Rcpp::Rcout << "sigma_b : " << Sigma << std::endl;
+            Rcpp::Rcout << "sigma_b transformed : " << exp(Sigma) << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
         }
@@ -87,7 +103,7 @@ class SV_glmer: public SV
             dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
-            b_m = GaussianNoise_mat(spc(0),1,rng);
+            b_m = GaussianNoise_mat(spc(4),1,rng);
             tm = GaussianNoise(theta.size(),rng);
 
         }

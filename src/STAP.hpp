@@ -93,7 +93,7 @@ class SV
             delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
             beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
             beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
-            theta = initialize_vec(stap_par_code_input(4),rng);
+            theta = initialize_vec(stap_par_code_input(2),rng);
             if(diagnostics){
                 Rcpp::Rcout << " Initialized Parameters" << std::endl;
                 print_pars();
