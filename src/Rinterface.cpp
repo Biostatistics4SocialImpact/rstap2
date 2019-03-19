@@ -278,8 +278,8 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         SV_glmer svl(stap_par_code,rng,diagnostics);
         SV_glmer svr(stap_par_code,rng,diagnostics);
         sv.initialize_momenta(rng);
-        svl.copy_SV(sv);
-        svr.copy_SV(sv);
+        svl.copy_SV_glmer(sv);
+        svr.copy_SV_glmer(sv);
 
         int n ,s, j, vj;
         double p;
@@ -423,12 +423,12 @@ Rcpp::List test_grads_glmer(Eigen::VectorXd& y,
         Eigen::VectorXd grad_grid(par_grid.size());
         Eigen::VectorXd energy_grid(par_grid.size());
         SV_glmer sv(stap_par_code,rng,true);
-        sv.beta_bar(0) = 1.0;
-        sv.beta(0) = 1.2;
         sv.alpha = 22;
+        sv.beta(0) = 1.2;
+        sv.beta_bar(0) = 1.0;
         sv.delta(0) = -.5;
-        sv.sigma = 0;
-        sv.Sigma = 0;
+        sv.sigma = log(.9);
+        sv.Sigma = log(1.5);
         sv.b = true_b;
         sv.am = 0;
         sv.bm = Eigen::VectorXd::Zero(1);
@@ -437,19 +437,14 @@ Rcpp::List test_grads_glmer(Eigen::VectorXd& y,
         sv.dm = Eigen::VectorXd::Zero(1);
         sv.b_m = Eigen::VectorXd::Zero(true_b.rows());
         sv.S_m = 0.0;
+        sv.sm = 0.0;
         sv.theta(0) = log(1.0 / 19.0);
-        Rcpp::Rcout << "b : " << std::endl;
-        Rcpp::Rcout << (sv.b).block(0,0,5,1) << std::endl;
-        Rcpp::Rcout << "b transformed: " << std::endl;
-        Rcpp::Rcout <<  (W * sv.b).block(0,0,5,1) << std::endl;
-        stap_object.calculate_glmer_eta(sv);
-        Rcpp::Rcout << stap_object.eta.head(5) << std::endl;
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.theta(0) = par_grid(i);
+            sv.b(0,0) = par_grid(i);
+            energy_grid(i) = stap_object.calculate_glmer_energy(sv);
             stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sgg.theta_grad(0);
-            energy_grid(i) = stap_object.calculate_glmer_ll(sv);
+            grad_grid(i) = stap_object.sgg.b_grad(0,0);
         }
 
 

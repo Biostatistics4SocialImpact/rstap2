@@ -17,11 +17,11 @@ library(rstap2)
 
 ```{r}
 set.seed(24)
-num_subj <- 400
+num_subj <- 800
 num_bef <- 10
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
-theta_s <- .25
+theta_s <- .5
 alpha <- 22
 beta <- 1.2
 beta_bar <- 1
@@ -76,7 +76,7 @@ subj_n <- rep(1/3,num_subj)
 
 
 ```{r}
-iter_max <- 1000
+iter_max <- 1500
 warmup <- 500
 fit <- stapdnd_glm2.fit(y = y, z = Z,
                       u_s = as.matrix(u_crs),
@@ -105,9 +105,9 @@ samples <- tibble(chain=1,
 
 samples %>% filter(acceptance==1,ix>warmup) %>% 
     gather(delta,beta,beta_bar,theta,sigma,alpha,key="Parameters",value="Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*1.2 + (Parameters =="theta")*.25 + (Parameters=="sigma")*1 + 
-           (Parameters=="delta") *-.5 +  (Parameters=="beta_bar")*1 + 
-           (Parameters=="alpha")*22) %>% 
+    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
+           (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + 
+           (Parameters=="alpha")*alpha) %>% 
     ggplot(aes(x=Samples)) + geom_histogram() + theme_bw() + 
     geom_vline(aes(xintercept=Truth),linetype=2) +
     facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
@@ -118,9 +118,9 @@ samples %>% filter(acceptance==1,ix>warmup) %>%
 ```{r}
 samples %>% filter(acceptance == 1, ix > warmup) %>% 
     gather(delta,beta,beta_bar,theta,sigma,alpha,key = "Parameters", value = "Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*1.2 + (Parameters =="theta")*.25 + (Parameters=="sigma")*1 + 
-           (Parameters=="delta") *-.5 +  (Parameters=="beta_bar")*1 + 
-           (Parameters=="alpha")*22) %>%
+    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
+           (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + 
+           (Parameters=="alpha")*alpha) %>%
     ggplot(aes(x=ix,y=Samples,color=Parameters)) + geom_path() + theme_bw() + 
     geom_hline(aes(yintercept = Truth),linetype=2) + facet_wrap(~Parameters,scales="free") + 
     ggtitle("Custom NUTS - Trace Plot") + theme(strip.background = element_blank())

@@ -3,7 +3,7 @@ Eigen::MatrixXd initialize_matrix(const int& num_rows,const int& num_cols, std::
 
     std::uniform_real_distribution<double> runif(-2,2);
     Eigen::MatrixXd out(num_rows,num_cols);
-    for(int row_ix = 0; row_ix < num_rows; row_ix ++){
+    for(int row_ix = 0; row_ix < num_rows; row_ix ++){ 
         for(int col_ix = 0; col_ix < num_cols; col_ix ++)
             out(row_ix,col_ix) = runif(rng);
     }
@@ -100,10 +100,10 @@ class SV_glmer: public SV
             sm = GaussianNoise_scalar(rng);
             S_m = GaussianNoise_scalar(rng);
             am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
-            dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
-            b_m = GaussianNoise_mat(spc(4),1,rng);
+            dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
+            b_m = GaussianNoise_mat(b.rows(),b.cols(),rng);
             tm = GaussianNoise(theta.size(),rng);
 
         }
@@ -183,19 +183,19 @@ class SV_glmer: public SV
 
         void copy_SV_glmer(SV_glmer other){
             am = other.am;
-            dm = other.dm;
             bm = other.bm;
             bbm = other.bbm;
-            b_m = other.b_m;
+            dm = other.dm;
             tm = other.tm;
+            b_m = other.b_m;
             sm = other.sm;
             S_m = other.S_m;
             alpha = other.alpha;
-            delta = other.delta;
             beta = other.beta;
             beta_bar = other.beta_bar;
-            b = other.b;
             theta = other.theta;
+            delta = other.delta;
+            b = other.b;
             sigma = other.sigma;
             Sigma = other.Sigma;
         }
@@ -203,22 +203,33 @@ class SV_glmer: public SV
         double kinetic_energy_glmer(){
             double out = 0;
             out = dm.transpose() * (1.0 / vd.sd).matrix().asDiagonal() * dm;
+            Rcpp::Rcout << "dm" << out << std::endl;
             out += bm.transpose() * (1.0 / vb.sd).matrix().asDiagonal() * bm;
+            Rcpp::Rcout << "bm" << out << std::endl;
             out += bbm.transpose() * (1.0 / vbb.sd).matrix().asDiagonal() * bbm;
+            Rcpp::Rcout << "bbm" << out << std::endl;
             out += tm.transpose() * (1.0 / vt.sd).matrix().asDiagonal() * tm;
+            Rcpp::Rcout << "tm" << out << std::endl;
             out += (sm * sm) / vs.sd   + (am * am) / va.sd;
-            out += (b.transpose() * b).sum() ;
-            out += Sigma * (Sigma);
+            Rcpp::Rcout << "sm" << out << std::endl;
+            out += (b_m.transpose() * b_m).sum() ;
+            Rcpp::Rcout << "b_m" << out << std::endl;
+            out += S_m * (S_m);
+            Rcpp::Rcout << "S_m" << out << std::endl;
             out = out / 2.0;
             return(out);
         }
+
 };
 
 bool get_UTI_one(SV_glmer& svgl, SV_glmer& svgr){
 
 
     double out;
-    out = (svgr.delta - svgl.delta).dot(svgl.dm) + (svgr.beta - svgl.beta).dot(svgl.bm) + (svgr.beta_bar - svgl.beta_bar).dot(svgl.bbm) + (svgr.theta - svgl.theta).dot(svgl.tm) + (svgr.sigma - svgl.sigma) * (svgl.sm);
+    out = (svgr.delta - svgl.delta).dot(svgl.dm);
+    out += (svgr.beta - svgl.beta).dot(svgl.bm);
+    out += (svgr.beta_bar - svgl.beta_bar).dot(svgl.bbm);
+    out += (svgr.theta - svgl.theta).dot(svgl.tm) + (svgr.sigma - svgl.sigma) * (svgl.sm);
     out += (svgr.alpha - svgl.alpha) * svgl.am;
     out += (svgr.Sigma - svgl.Sigma) * svgl.S_m;
     out += ((svgr.b - svgl.b).transpose() * svgl.b_m).sum();

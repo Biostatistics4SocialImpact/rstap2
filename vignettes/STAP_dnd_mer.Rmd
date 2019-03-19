@@ -16,7 +16,7 @@ library(tidyverse)
 
 ```{r}
 set.seed(24)
-num_subj <- 300
+num_subj <- 200
 num_bef <- 10
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
@@ -24,8 +24,8 @@ theta_s <- 0.5
 alpha <- 22
 beta <- 1.2
 beta_bar <- 1
-sigma <- 1.5
-sigma_b <- 1.2
+sigma <- .9
+sigma_b <- 1.5
 dists_1 <- matrix(rexp(n = num_subj*num_bef,
                        rate = 1),
                   nrow = num_subj,
@@ -54,12 +54,15 @@ X_bar <- X %>% group_by(id) %>% summarise(MN_Exposure = mean(Exposure)) %>%
 
 X_diff <- X %>% left_join(X_bar,by='id') %>% mutate(X_diff = Exposure - MN_Exposure)
 
+epsilon_ij <- rnorm(n = num_subj * 3, mean = 0, sd = sigma)
+
+eta <- alpha + Z * delta + beta*X_diff$X_diff + 
+    X_diff$MN_Exposure*beta_bar + 
+    X_diff$subj_int 
 
 y <- alpha + Z * delta + beta*X_diff$X_diff + 
     X_diff$MN_Exposure*beta_bar + 
-    X_diff$subj_int  + rnorm(n = num_subj*3,
-                           mean = 0,
-                           sd = sigma)
+    X_diff$subj_int  + epsilon_ij 
 
 Z <- matrix(Z,ncol=1)
 ```
@@ -81,8 +84,8 @@ W <- t(subj_mat1)
 
 ```{r}
 devtools::load_all(recompile=T)
-iter_max <- 10 
-warmup <- 10
+iter_max <- 500 
+warmup <- 250
 sink("~/Desktop/Routput.txt")
 fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
                       u_s = as.matrix(u_crs),
@@ -93,28 +96,44 @@ fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
                       adapt_delta = .65,
                       warmup = warmup, 
                       iter_max = iter_max,
-                      max_treedepth = 8,
+                      max_treedepth = 10,
                       seed = 2341,
                       diagnostics = 1)
 sink()
 ```
 
 ```{r}
-thetas <- seq(from = -5, to =2.0, by =0.05);
+thetas <- seq(from = -3, to =3.0, by =0.05);
+customthetas <- seq(from = X_bar$subj_int[1] - 1, to= X_bar$subj_int[1] + 1, by = 0.05)
 sink("~/Desktop/Routput.txt")
-out <- test_grads_glmer(y,Z,W,as.matrix(X_bar$subj_int,ncol=1),beta_bar,beta,
-                  dists_crs,as.matrix(u_crs),
-                  subj_mat1,as.matrix(subj_n,ncol=1),thetas,
-                  c(length(y),1,1,1,num_subj),
-                  seed = 1241)
+out <- test_grads_glmer(y,Z,W,
+                        true_b = as.matrix(X_bar$subj_int,ncol=1),
+                        beta_bar,beta,
+                        dists_crs,as.matrix(u_crs),
+                        subj_mat1,as.matrix(subj_n,ncol=1),
+                        customthetas,
+                        c(length(y),1,1,1,num_subj),
+                        seed = 1241)
 sink()
 
 transform_thetas <- function(x) 10 / (1 + exp(-x))
-tibble(theta = transform_thetas(thetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
+tibble(theta = (customthetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = X_bar$subj_int[1]) ,linetype = 2) 
 
-tibble(theta = transform_thetas(thetas), grad = out$grad) %>% ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = .5),linetype = 2) 
+tibble(theta = (customthetas), grad = out$grad) %>% 
+    ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  +
+    geom_vline(aes(xintercept = X_bar$subj_int[1]),linetype = 2) 
 
 ```
 
 
+```
+samples <- tibble(chain=1,
+                  alpha = fit$alpha_samps,
+                  delta = fit$delta_samps[,1],
+                  beta = fit$beta_samps[,1],
+                  beta_bar = fit$beta_bar_samps[,1],
+                  theta = fit$theta_samps,
+                  sigma = fit$sigma_samps,
+                  acceptance = fit$acceptance) %>% mutate(ix = 1:n())
+```
 
