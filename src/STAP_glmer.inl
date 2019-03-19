@@ -1,6 +1,6 @@
 void STAP_glmer::calculate_glmer_eta(SV_glmer& svg){
 
-    eta = svg.get_alpha_vector() + X_diff * svg.beta + X_mean * svg.beta_bar + Z * svg.delta + (W * svg.b * svg.mer_sd_transformed()) ;
+    eta = svg.get_alpha_vector() + X_diff * svg.beta + X_mean * svg.beta_bar + Z * svg.delta + (W * svg.b) ;
 }
 
 
@@ -13,8 +13,8 @@ double STAP_glmer::calculate_glmer_ll(SV_glmer& svg){
     out += - y.size() / 2.0 * log( M_PI * 2 * svg.sigma_sq_transformed() ); 
     out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum();
 
-    out += - svg.b.size() / 2.0 * log(M_PI * 2);
-    out += - .5  * (pow(svg.b.array(),2)).sum();
+    out += - svg.b.size() / 2.0 * log(M_PI * 2 * svg.mer_var_transformed());
+    out += - .5  * svg.mer_precision_transformed() * (pow(svg.b.array(),2)).sum();
 
     return(out);
 }
@@ -123,11 +123,11 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
 
     sgg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
 
-    sgg.b_grad = precision * (subj_array * (y-eta)) - svg.b;
+    sgg.b_grad = precision * (subj_array * (y-eta)) - svg.mer_precision_transformed() * svg.b;
    
     Rcpp::Rcout << "mer precision: " <<  svg.mer_precision_transformed() << std::endl;
 
-    sgg.subj_sig_grad =  precision * svg.mer_sd_transformed() *  ((y-eta).array() * ( W * svg.b).array()).sum() ; 
+    sgg.subj_sig_grad =  svg.mer_precision_transformed() * pow(svg.b.array(),2).sum() - svg.b.size(); 
 
     // prior components
     sgg.alpha_grad += -1.0 / 25 * (svg.alpha - 25); 
