@@ -53,7 +53,7 @@ stapdnd_glmer2.fit <- function(y,z,w,
                              prior_theta = lognormal(),
                              prior_sigma = cauchy()){
     
-    out <- stapdnd_glmer(y = y, Z = z, W = w, distances = dists_crs,
+    out <- stapdnd_glmer(y = y, Z = z, W = w,distances = dists_crs,
                          u_crs = u_s, subj_matrix = subj_matrix, subj_n = subj_n,
                          stap_par_code = stap_par_code, adapt_delta = adapt_delta,
                          iter_max = iter_max, max_treedepth = max_treedepth,

@@ -245,6 +245,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                           const int& seed,
                           const bool& diagnostics) {
 
+        auto start = std::chrono::high_resolution_clock::now();
         Eigen::VectorXi acceptance(iter_max);
         acceptance = Eigen::VectorXi::Zero(iter_max);
         // declare placeholder items  for list return
@@ -346,9 +347,9 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                     Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
-                epsilons(iter_ix-1) = epsilon;
               }
             if(iter_ix <= warmup){
+                epsilons(iter_ix-1) = epsilon;
                 H_bar = (1.0 - 1.0 / (iter_ix + t_naught)) * H_bar + (1.0 /(iter_ix + t_naught)) * (adapt_delta - tree.get_alpha_prime() / tree.get_n_alpha());
                 epsilon = exp(mu_beta - (sqrt(iter_ix) / gamma) * H_bar);
                 epsilon_bar = exp(pow(iter_ix,-kappa) * log(epsilon) + (1.0 - pow(iter_ix,-kappa)) * log(epsilon_bar));
@@ -360,6 +361,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 }
             }
             else{ 
+                epsilons(iter_ix-1) = epsilon;
                 epsilon = epsilon_bar;
             }
             treedepth(iter_ix-1) = j;
@@ -386,6 +388,10 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 iter_ix = iter_ix - 1;
        }
 
+       auto stop = std::chrono::high_resolution_clock::now();
+       auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop-start);
+       double sampling_time = duration.count();
+
     return(Rcpp::List::create(Rcpp::Named("alpha_samps") = alpha_out, 
                               Rcpp::Named("delta_samps") = delta_out,
                               Rcpp::Named("beta_samps") =  beta_out,
@@ -396,6 +402,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                               Rcpp::Named("Sigma_samps") = cov_out,
                               Rcpp::Named("treedepth") = treedepth,
                               Rcpp::Named("acceptance") = acceptance,
+                              Rcpp::Named("sampling_time") = sampling_time,
                               Rcpp::Named("epsilons") = epsilons,
                               Rcpp::Named("epsilon") = epsilon,
                               Rcpp::Named("loglik") = loglik_out));
@@ -441,10 +448,10 @@ Rcpp::List test_grads_glmer(Eigen::VectorXd& y,
         sv.theta(0) = log(1.0 / 19.0);
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.b(0,0) = par_grid(i);
+            sv.b(1,0) = par_grid(i);
             energy_grid(i) = stap_object.calculate_glmer_energy(sv);
             stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sgg.b_grad(0,0);
+            grad_grid(i) = stap_object.sgg.b_grad(1,0);
         }
 
 

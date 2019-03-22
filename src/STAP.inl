@@ -78,7 +78,7 @@ double STAP::calculate_total_energy(SV& sv){
         Rcpp::Rcout << "bb prior " << out << std::endl;
 
     // log(theta) ~ N(1,1) prior 
-    out +=  R::dlnorm(sv.theta_transformed()(0),0,1,TRUE);//-log(transformed_theta) - .5 * log( 2.0 * M_PI) - .5 * pow(log(transformed_theta) - 1,2);
+    out +=  R::dlnorm(sv.theta_transformed()(0),1,1,TRUE);
     if(diagnostics)
         Rcpp::Rcout << "theta prior " << out << std::endl;
 
@@ -88,7 +88,7 @@ double STAP::calculate_total_energy(SV& sv){
         Rcpp::Rcout << "sigma prior " << out << std::endl;
 
     // theta constraints jacobian adjustment 
-    out += 10 /(1+exp(-sv.theta(0))) * (1- 1/(1+exp(-sv.theta(0))));
+    out += log(10) - log(1 + exp(-sv.theta(0))) + log(1.0 - 1.0 / (1 + exp(-sv.theta(0))));
 
     if(diagnostics)
         Rcpp::Rcout << "jacobian I" << out << std::endl;
@@ -187,9 +187,7 @@ void STAP::calculate_gradient(SV& sv){
 
     double theta = sv.theta(0);
     double theta_transformed = 10 / (1 + exp(- theta));
-    double theta_exponentiated = theta_transformed / (10.0 - theta_transformed);
-    double lp_prior_I = pow(theta_transformed,-1) * (10 * exp(-theta)) / pow(1 + exp(-theta),2);
-    double lp_prior_II = 2 * log(theta_transformed) / ( 1 + exp(-theta));
+    double theta_exp = exp(theta);
     double precision = sv.precision_transformed();
     this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
     this->calculate_eta(sv);
@@ -211,8 +209,8 @@ void STAP::calculate_gradient(SV& sv){
     sg.delta_grad = sg. delta_grad - 1.0 / 9.0 * sv.delta;
     sg.beta_grad = sg.beta_grad - 1.0 / 9.0 * sv.beta;
     sg.beta_bar_grad = sg.beta_bar_grad - 1.0 / 9.0 * sv.beta_bar;
-    sg.theta_grad  = sg.theta_grad - Eigen::VectorXd::Constant(sg.theta_grad.size(),lp_prior_I) - Eigen::VectorXd::Constant(sg.theta_grad.size(),lp_prior_II) ;
-    sg.theta_grad = sg.theta_grad + Eigen::VectorXd::Constant(sg.theta_grad.size(),( 1- theta_exponentiated) / (theta_exponentiated + 1));
+    sg.theta_grad(0) = sg.theta_grad(0) - (2 + log(theta_transformed)) / (theta_exp + 1) ;
+    sg.theta_grad(0)  = sg.theta_grad(0) + (1 - theta_exp) / (theta_exp + 1);
     sg.sigma_grad += - (2 * sv.sigma_transformed()) / (25 + sv.sigma_sq_transformed()) + 1;
 
     if(sv.spc(1) == 0 )

@@ -146,7 +146,7 @@ class SV_glmer: public SV
         void momenta_leapfrog_position(SV_glmer& svg, double& epsilon){
             if(diagnostics){
                 Rcpp::Rcout << "initial positions " << std::endl;
-                this->print_pars();
+                svg.print_pars();
             }
             alpha = svg.alpha + epsilon * am;
             delta = svg.delta + epsilon * dm;
@@ -203,19 +203,12 @@ class SV_glmer: public SV
         double kinetic_energy_glmer(){
             double out = 0;
             out = dm.transpose() * (1.0 / vd.sd).matrix().asDiagonal() * dm;
-            Rcpp::Rcout << "dm" << out << std::endl;
             out += bm.transpose() * (1.0 / vb.sd).matrix().asDiagonal() * bm;
-            Rcpp::Rcout << "bm" << out << std::endl;
             out += bbm.transpose() * (1.0 / vbb.sd).matrix().asDiagonal() * bbm;
-            Rcpp::Rcout << "bbm" << out << std::endl;
             out += tm.transpose() * (1.0 / vt.sd).matrix().asDiagonal() * tm;
-            Rcpp::Rcout << "tm" << out << std::endl;
             out += (sm * sm) / vs.sd   + (am * am) / va.sd;
-            Rcpp::Rcout << "sm" << out << std::endl;
             out += (b_m.transpose() * b_m).sum() ;
-            Rcpp::Rcout << "b_m" << out << std::endl;
             out += S_m * (S_m);
-            Rcpp::Rcout << "S_m" << out << std::endl;
             out = out / 2.0;
             return(out);
         }

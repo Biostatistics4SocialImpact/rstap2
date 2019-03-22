@@ -45,7 +45,8 @@ stapdnd_glm2.fit <- function(y,z,
     if(link != "identity")
          stop("'link' must be one of", paste( supported_links, collapse = ', '))
     
-    fit <- stap_diffndiff(y = y,Z = z,distances = dists_crs,u_crs = u_s,
+    fit <- stap_diffndiff(y = y,Z = z,
+                          distances = dists_crs,u_crs = u_s,
                           subj_array = subj_matrix,subj_n = subj_n,
                           stap_par_code = stap_par_code,
                           adapt_delta = adapt_delta,iter_max = iter_max,

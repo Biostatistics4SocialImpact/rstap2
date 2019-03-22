@@ -192,7 +192,7 @@ class SV
         void momenta_leapfrog_position(SV& sv, double& epsilon){
             if(diagnostics){
                 Rcpp::Rcout << "initial positions " << std::endl;
-                this->print_pars();
+                sv.print_pars();
             }
             alpha = sv.alpha + epsilon * am;
             delta = sv.delta + epsilon * dm;
