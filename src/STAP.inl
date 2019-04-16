@@ -39,7 +39,6 @@ void STAP::calculate_eta(SV& sv){
 
 }
 
-
 double STAP::calculate_total_energy(SV& sv){
             
      if(diagnostics){
@@ -135,7 +134,10 @@ void STAP::calculate_X(double& theta){
         for(int subj_ix = 0; subj_ix < u_crs.rows(); subj_ix ++){
             start_col = u_crs(subj_ix,bef_ix);
             range_len = u_crs(subj_ix,bef_ix+1) - start_col + 1;
-            X(subj_ix,bef_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta  )).sum();
+            if(range_len==0)
+                X(subj_ix,bef_ix) = 0;
+            else
+                X(subj_ix,bef_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta  )).sum();
         }
     }
 }
@@ -219,7 +221,6 @@ void STAP::calculate_gradient(SV& sv){
         sg.beta_grad = Eigen::VectorXd::Zero(1);
     if(sv.spc(3) == 0)
         sg.beta_bar_grad = Eigen::VectorXd::Zero(1);
-
 }
 
 double STAP::FindReasonableEpsilon(SV& sv, std::mt19937& rng){
