@@ -21,6 +21,7 @@
 #'@export
 #'@param y an N-length vector
 #'@param z N x p design matrix of subject specific covariates
+#'@param w a N x 1 of ones or a N X 2 matrix consisting 
 #'@param dists_crs (q_s+q_st) x M matrix of distances between outcome 
 #' observations and built environment features with a hypothesized spatial scale
 #'@param u_s N x (q *2) matrix of compressed row storage array indices for dists_crs
@@ -53,11 +54,19 @@ stapdnd_glmer2.fit <- function(y,z,w,
                              prior_theta = lognormal(),
                              prior_sigma = cauchy()){
     
-    out <- stapdnd_glmer(y = y, Z = z, W = w,distances = dists_crs,
-                         u_crs = u_s, subj_matrix = subj_matrix, subj_n = subj_n,
-                         stap_par_code = stap_par_code, adapt_delta = adapt_delta,
-                         iter_max = iter_max, max_treedepth = max_treedepth,
-                         warmup = warmup, seed = seed,
-                         diagnostics = diagnostics)
+    if(dim(w)[2] == 2){
+        out <- stapdnd_glmer2(y = y, Z = z, W = w, distances = dists_crs,
+                              u_crs = u_s, subj_matrix = subj_matrix, subj_n = subj_n,
+                              stap_par_code = stap_par_code, adapt_delta = adapt_delta,
+                              iter_max = iter_max, max_treedepth = max_treedepth,
+                              warmup = warmup, seed = seed, diagnostics = diagnostics)
+    }else{
+        out <- stapdnd_glmer(y = y, Z = z, W = w,distances = dists_crs,
+                             u_crs = u_s, subj_matrix = subj_matrix, subj_n = subj_n,
+                             stap_par_code = stap_par_code, adapt_delta = adapt_delta,
+                             iter_max = iter_max, max_treedepth = max_treedepth,
+                             warmup = warmup, seed = seed,
+                             diagnostics = diagnostics)
+    }
     return(out)
 }

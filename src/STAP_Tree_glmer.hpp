@@ -32,9 +32,23 @@ class STAP_Tree_glmer
                 double &epsilon,
                 std::mt19937 &rng);
 
+        void BuildTree(STAP_glmer& stap_object,
+                SV_glmer& sv_proposed,
+                SV_glmer& sv_init,
+                double& u,int v, int j,
+                double &epsilon,
+                Eigen::MatrixXd& Sigma_inverse,
+                Eigen::MatrixXd& S,
+                const int& nu,
+                std::mt19937 &rng);
+
         void Leapfrog(STAP_glmer& stap_object,
                       SV_glmer& sv,
                       double epsilon);
+
+        void Leapfrog(STAP_glmer& stap_object,
+                      SV_glmer& sv,
+                      double epsilon, Eigen::MatrixXd& Sigma_inverse);
 
         const int get_s_prime() const{
             return(s_prime);
@@ -96,7 +110,7 @@ class STAP_Tree_glmer
             return(svn.sigma);
         }
 
-        Eigen::VectorXd get_b_new() {
+        Eigen::MatrixXd get_b_new() {
             return(svn.b);
         }
 

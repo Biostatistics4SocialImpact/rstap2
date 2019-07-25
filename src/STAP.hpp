@@ -2,6 +2,7 @@
 #include<RcppEigen.h>
 #include<Eigen/Core>
 #include "SV_helpers.hpp"
+#include <math.h>
 
 class SG
 {
@@ -387,6 +388,8 @@ class STAP
             
         double sample_u(SV& sv, std::mt19937& rng);
 
+        double calculate_exposure(int& bef_ix, int& start, int& range_len, double& theta,const bool& space, const bool& time, const bool& exp);
+
         void calculate_X(double& theta);
 
         void calculate_X_diff(double& theta);
@@ -434,6 +437,5 @@ class STAP
         }
 
 };
-
 
 #include "STAP.inl"
