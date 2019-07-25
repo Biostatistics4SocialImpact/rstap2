@@ -28,13 +28,11 @@ stapdnd_glm2.fit <- function(y,z,
                             seed,
                             diagnostics,
                             cores = 1,
-                            chains = 1,
                             prior_dnd = normal(),
                             prior_intercept = normal(),
                             prior_bar = normal(),
                             prior_theta = lognormal(),
-                            prior_sigma = cauchy(),
-                            include_warmup = F
+                            prior_sigma = cauchy()
                            ){
 
 
@@ -47,40 +45,12 @@ stapdnd_glm2.fit <- function(y,z,
     if(link != "identity")
          stop("'link' must be one of", paste( supported_links, collapse = ', '))
     
-    if(!is.matrix(z))
-        stop("Z is not a matrix")
-    
-    if(!is.matrix(dists_crs))
-        stop("distances object submitted is not a matrix")
-    
-    if(!is.matrix(u_s))
-        stop("compressed row storage indices are not stored in matrix")
-    
-    if(chains == 1){
-        fit <- stap_diffndiff(y = y, 
-                            Z = z,
-                          distances = dists_crs,
-                          u_crs = u_s,
-                          subj_array = subj_matrix,
-                          subj_n = subj_n,
+    fit <- stap_diffndiff(y = y,Z = z,
+                          distances = dists_crs,u_crs = u_s,
+                          subj_array = subj_matrix,subj_n = subj_n,
                           stap_par_code = stap_par_code,
                           adapt_delta = adapt_delta,iter_max = iter_max,
                           max_treedepth = max_treedepth,warmup = warmup,
                           seed = seed,diagnostics = diagnostics)
-        out <- list(subj_matrix = subj_matrix,
-                    subj_n = subj_n,
-                    stap_par_code = stap_par_code,
-                    iter_max = iter_max,
-                    max_treedepth = max_treedepth,
-                    warmup = warmup,
-                    diagnostics = diagnostics,
-                    fit = fit)
-        return(fit) ## for now
-    }else{
-     stop("Not implemented yet")   
-    }
-
-    return(out)
-    
 
 }

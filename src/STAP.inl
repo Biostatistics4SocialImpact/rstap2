@@ -25,17 +25,9 @@ double STAP::calculate_ll(SV& sv){
     this->calculate_eta(sv);
 
     out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
-    if(diagnostics){
-        Rcpp::Rcout << "ll constant" << std::endl;
-        Rcpp::Rcout << out << std::endl;
-    }
 
     // likelihood kernel
     out += - .5 * sv.precision_transformed() * (pow((y - eta).array(),2)).sum();
-    if(diagnostics){
-        Rcpp::Rcout << "ll kernel" << std::endl;
-        Rcpp::Rcout << out << std::endl;
-    }
 
     return(out);
 
@@ -133,16 +125,6 @@ double STAP::sample_u(SV& sv, std::mt19937& rng){
     return(energy + log_z);
 }
 
-double STAP::calculate_exposure(int& bef_ix, int& start, int& range_len, double& theta,const bool& space, const bool& time, const bool& exponential){
-
-    double theta_tilde = 10 / (1 + exp(- theta)) ;
-    return( (exp(- dists.block(bef_ix,start,1,range_len) / theta  )).sum());
-    if(time){
-        Rf_error("c++ exception function not yet defined for this value");
-    }
-
-}
-
 void STAP::calculate_X(double& theta){
     
     int start_col;
@@ -155,7 +137,7 @@ void STAP::calculate_X(double& theta){
             if(range_len==0)
                 X(subj_ix,bef_ix) = 0;
             else
-                X(subj_ix,bef_ix) = this->calculate_exposure(bef_ix, start_col,range_len, theta,true,false,true);
+                X(subj_ix,bef_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta  )).sum();
         }
     }
 }
@@ -214,7 +196,7 @@ void STAP::calculate_gradient(SV& sv){
 
     sg.delta_grad =  precision * ((y - eta ).transpose() * Z).transpose();
 
-    sg.alpha_grad = sv.spc(0) == 0 ? 0 : precision * (y - eta).sum();
+    sg.alpha_grad = sv.spc(0) == 0 ? 0 : precision * (y - eta ).sum();
 
     sg.beta_grad = (precision * ( y - eta).transpose() * X_diff).transpose();
 

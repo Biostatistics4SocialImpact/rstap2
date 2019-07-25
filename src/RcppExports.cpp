@@ -74,31 +74,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// stapdnd_glmer2
-Rcpp::List stapdnd_glmer2(Eigen::VectorXd& y, Eigen::MatrixXd& Z, Eigen::MatrixXd& W, const double& eta, Eigen::ArrayXXd& distances, Eigen::ArrayXXi& u_crs, Eigen::MatrixXd& subj_matrix, Eigen::MatrixXd& subj_n, Eigen::ArrayXi& stap_par_code, const double& adapt_delta, const int& iter_max, const int& max_treedepth, const int& warmup, const int& seed, const bool& diagnostics);
-RcppExport SEXP _rstap2_stapdnd_glmer2(SEXP ySEXP, SEXP ZSEXP, SEXP WSEXP, SEXP etaSEXP, SEXP distancesSEXP, SEXP u_crsSEXP, SEXP subj_matrixSEXP, SEXP subj_nSEXP, SEXP stap_par_codeSEXP, SEXP adapt_deltaSEXP, SEXP iter_maxSEXP, SEXP max_treedepthSEXP, SEXP warmupSEXP, SEXP seedSEXP, SEXP diagnosticsSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Eigen::VectorXd& >::type y(ySEXP);
-    Rcpp::traits::input_parameter< Eigen::MatrixXd& >::type Z(ZSEXP);
-    Rcpp::traits::input_parameter< Eigen::MatrixXd& >::type W(WSEXP);
-    Rcpp::traits::input_parameter< const double& >::type eta(etaSEXP);
-    Rcpp::traits::input_parameter< Eigen::ArrayXXd& >::type distances(distancesSEXP);
-    Rcpp::traits::input_parameter< Eigen::ArrayXXi& >::type u_crs(u_crsSEXP);
-    Rcpp::traits::input_parameter< Eigen::MatrixXd& >::type subj_matrix(subj_matrixSEXP);
-    Rcpp::traits::input_parameter< Eigen::MatrixXd& >::type subj_n(subj_nSEXP);
-    Rcpp::traits::input_parameter< Eigen::ArrayXi& >::type stap_par_code(stap_par_codeSEXP);
-    Rcpp::traits::input_parameter< const double& >::type adapt_delta(adapt_deltaSEXP);
-    Rcpp::traits::input_parameter< const int& >::type iter_max(iter_maxSEXP);
-    Rcpp::traits::input_parameter< const int& >::type max_treedepth(max_treedepthSEXP);
-    Rcpp::traits::input_parameter< const int& >::type warmup(warmupSEXP);
-    Rcpp::traits::input_parameter< const int& >::type seed(seedSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type diagnostics(diagnosticsSEXP);
-    rcpp_result_gen = Rcpp::wrap(stapdnd_glmer2(y, Z, W, eta, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics));
-    return rcpp_result_gen;
-END_RCPP
-}
 // test_grads_glmer
 Rcpp::List test_grads_glmer(Eigen::VectorXd& y, Eigen::MatrixXd& Z, Eigen::MatrixXd& W, Eigen::MatrixXd& true_b, Eigen::VectorXd& beta_bar, Eigen::VectorXd& beta, Eigen::ArrayXXd& distances, Eigen::ArrayXXi& u_crs, Eigen::MatrixXd& subj_array, Eigen::MatrixXd& subj_n, Eigen::VectorXd& par_grid, Eigen::ArrayXi& stap_par_code, const int seed);
 RcppExport SEXP _rstap2_test_grads_glmer(SEXP ySEXP, SEXP ZSEXP, SEXP WSEXP, SEXP true_bSEXP, SEXP beta_barSEXP, SEXP betaSEXP, SEXP distancesSEXP, SEXP u_crsSEXP, SEXP subj_arraySEXP, SEXP subj_nSEXP, SEXP par_gridSEXP, SEXP stap_par_codeSEXP, SEXP seedSEXP) {
@@ -127,7 +102,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_rstap2_stap_diffndiff", (DL_FUNC) &_rstap2_stap_diffndiff, 13},
     {"_rstap2_test_grads", (DL_FUNC) &_rstap2_test_grads, 11},
     {"_rstap2_stapdnd_glmer", (DL_FUNC) &_rstap2_stapdnd_glmer, 14},
-    {"_rstap2_stapdnd_glmer2", (DL_FUNC) &_rstap2_stapdnd_glmer2, 15},
     {"_rstap2_test_grads_glmer", (DL_FUNC) &_rstap2_test_grads_glmer, 13},
     {NULL, NULL, 0}
 };

@@ -20,7 +20,6 @@ Eigen::MatrixXd GaussianNoise_mat(const int& num_rows, const int& num_cols, std:
     return(out);
 }
 
-
 class SG_glmer: public SG
 {
     public:
@@ -37,7 +36,7 @@ class SG_glmer: public SG
             Rcpp::Rcout << "theta_grad: " << theta_grad << std::endl;
             Rcpp::Rcout << "sigma_grad: " << sigma_grad << std::endl;
             Rcpp::Rcout << "subj_b_grad: " << b_grad.size() << std::endl;
-            Rcpp::Rcout << "subj_b_grad: " << b_grad.block(0,0,5,b_grad.cols()) << std::endl;
+            Rcpp::Rcout << "subj_b_grad: " << b_grad.block(0,0,5,1) << std::endl;
             Rcpp::Rcout << "subj_sigma_grad: " << subj_sig_grad << std::endl;
             Rcpp::Rcout << "-------------------- \n " << std::endl;
         }
@@ -50,16 +49,15 @@ class SV_glmer: public SV
         Eigen::MatrixXd b_m;
         double Sigma;
         double S_m;
-        Var_Agg<Eigen::MatrixXd> vb_s;
         SV_glmer(Eigen::ArrayXi& stap_par_code_input,
                 std::mt19937& rng, const bool input_diagnostics) :
             SV(stap_par_code_input,rng,input_diagnostics)
     {
-        b = initialize_matrix(spc(4),spc(5),rng); 
-        Sigma = spc(5) == 1 ? initialize_scalar(rng): 0.0 ;
+        b = initialize_matrix(spc(4),1,rng); 
+        Sigma = initialize_scalar(rng);
         if(diagnostics){
             Rcpp::Rcout << "Subj_sigma " << Sigma << std::endl;
-            Rcpp::Rcout << "b head " << b.block(0,0,5,b.cols()) << std::endl;
+            Rcpp::Rcout << "b head " << b.block(0,0,5,1) << std::endl;
         }
     }
         void print_pars(){
@@ -74,7 +72,7 @@ class SV_glmer: public SV
             Rcpp::Rcout << "theta_transformed: " << 10 / (1 + exp(-theta(0))) << std::endl;
             Rcpp::Rcout << "sigma: " << sigma << std::endl;
             Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
-            Rcpp::Rcout << "b : \n" << b.block(0,0,5,b.cols()) << std::endl;
+            Rcpp::Rcout << "b : \n" << b.block(0,0,5,1) << std::endl;
             Rcpp::Rcout << "sigma_b : " << Sigma << std::endl;
             Rcpp::Rcout << "sigma_b transformed : " << exp(Sigma) << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
@@ -92,7 +90,7 @@ class SV_glmer: public SV
             Rcpp::Rcout << "tm: " << tm << std::endl;
             Rcpp::Rcout << "sm: " << sm << std::endl;
             Rcpp::Rcout << "S_m: " << S_m << std::endl;
-            Rcpp::Rcout << "b_m: \n" << b_m.block(0,0,5,b_m.cols()) << std::endl;
+            Rcpp::Rcout << "b_m: \n" << b_m.block(0,0,5,1) << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
         }
@@ -100,7 +98,7 @@ class SV_glmer: public SV
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
-            S_m = spc(5) == 1 ? GaussianNoise_scalar(rng): 0 ;
+            S_m = GaussianNoise_scalar(rng);
             am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
@@ -209,10 +207,7 @@ class SV_glmer: public SV
             out += bbm.transpose() * (1.0 / vbb.sd).matrix().asDiagonal() * bbm;
             out += tm.transpose() * (1.0 / vt.sd).matrix().asDiagonal() * tm;
             out += (sm * sm) / vs.sd   + (am * am) / va.sd;
-            if(b_m.cols() == 1)
-                out += (b_m.transpose() * b_m).sum();
-            else
-                out += ((b_m.array() * b_m.array()).colwise().sum()).sum() ;
+            out += (b_m.transpose() * b_m).sum() ;
             out += S_m * (S_m);
             out = out / 2.0;
             return(out);
@@ -229,11 +224,8 @@ bool get_UTI_one(SV_glmer& svgl, SV_glmer& svgr){
     out += (svgr.beta_bar - svgl.beta_bar).dot(svgl.bbm);
     out += (svgr.theta - svgl.theta).dot(svgl.tm) + (svgr.sigma - svgl.sigma) * (svgl.sm);
     out += (svgr.alpha - svgl.alpha) * svgl.am;
-    out += (svgr.Sigma - svgl.Sigma) * svgl.S_m; 
-    if(svgr.b.cols() == 1)
-        out += ((svgr.b - svgl.b).transpose() * svgl.b_m).sum();
-    else
-        out +=  (((svgr.b - svgl.b).array() * svgl.b_m.array()).colwise().sum()).sum();
+    out += (svgr.Sigma - svgl.Sigma) * svgl.S_m;
+    out += ((svgr.b - svgl.b).transpose() * svgl.b_m).sum();
     out = out / 2.0;
 
     return((out >=0));
@@ -248,10 +240,7 @@ bool get_UTI_two(SV_glmer& svgl,SV_glmer& svgr){
     out += (svgr.sigma - svgl.sigma) * (svgr.sm);
     out += (svgr.alpha - svgl.alpha) * svgr.am;
     out += (svgr.Sigma - svgl.Sigma) * svgr.S_m;
-    if(svgr.b.cols() == 1)
-        out += ((svgr.b - svgl.b).transpose() * svgr.b_m).sum();
-    else
-        out += (((svgr.b-svgl.b).array() * svgl.b_m.array()).colwise().sum()).sum();
+    out += ((svgr.b - svgl.b).transpose() * svgr.b_m).sum();
     out = out / 2.0;
 
     return((out >=0));
@@ -259,8 +248,8 @@ bool get_UTI_two(SV_glmer& svgl,SV_glmer& svgr){
 
 class STAP_glmer: public STAP
 {
+    private: Eigen::MatrixXd W;
     public:
-        Eigen::MatrixXd W;
         SG_glmer sgg;
         STAP_glmer(Eigen::ArrayXXd& input_dists,
                    Eigen::ArrayXXi& input_ucrs,
@@ -272,30 +261,19 @@ class STAP_glmer: public STAP
                    const bool& input_diagnostics) : 
             STAP(input_dists,input_ucrs,input_subj_array,input_subj_n, input_Z, input_y, input_diagnostics), W(input_W)       
             {
-                sgg.b_grad = Eigen::MatrixXd::Zero(input_subj_array.rows(),input_W.cols());
             }
 
         void calculate_glmer_eta(SV_glmer& svg);
 
         double calculate_glmer_ll(SV_glmer& svg);
 
-        double calculate_glmer_ll(SV_glmer& svg);
-
-        double calculate_glmer_energy(SV_glmer& svg);
-
         double calculate_glmer_energy(SV_glmer& svg);
 
         double sample_u(SV_glmer& svg,std::mt19937& rng);
 
-        double sample_u(SV_glmer& svg,Eigen::MatrixXd& Sigma_inverse, Eigen::MatrixXd& S, const int& nu, std::mt19937& rng);
-
         void calculate_gradient(SV_glmer& svg);
 
-        void calculate_gradient(SV_glmer& svg, Eigen::MatrixXd& Sigma_inverse);
-
         double FindReasonableEpsilon(SV_glmer& svg,std::mt19937& rng);
-
-        double FindReasonableEpsilon(SV_glmer& svg,std::mt19937& rng,Eigen::MatrixXd& Sigma_inverse);
 };
 
 #include "STAP_glmer.inl"

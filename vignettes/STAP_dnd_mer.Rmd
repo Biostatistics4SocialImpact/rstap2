@@ -1,5 +1,5 @@
 ---
-title: "STAP DND Mixed Effects - Random Intercepts"
+title: "STAP DND Mixed Effects"
 author: "Adam Peterson"
 date: "3/6/2019"
 output: html_document
@@ -16,7 +16,7 @@ library(tidyverse)
 
 ```{r}
 set.seed(24)
-num_subj <- 300
+num_subj <- 200
 num_bef <- 10
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
@@ -24,8 +24,8 @@ theta_s <- 0.5
 alpha <- 22
 beta <- 1.2
 beta_bar <- 1
-sigma <- 1  
-sigma_b <- 1
+sigma <- .9
+sigma_b <- 1.5
 dists_1 <- matrix(rexp(n = num_subj*num_bef,
                        rate = 1),
                   nrow = num_subj,
@@ -46,9 +46,7 @@ dists <- dists %>% mutate(id=expand.grid(subj=1:num_subj,time = 1:3)$subj,
     gather(contains("BEF"),key = "BEF", value="Distance") %>% 
     filter(Distance<=5)
 
-X <- dists %>% group_by(id,time) %>% 
-    summarise(Exposure = sum(exp(-Distance/theta_s)))
-
+X <- dists %>% group_by(id,time) %>% summarise(Exposure = sum(exp(-Distance/theta_s)))
 X_bar <- X %>% group_by(id) %>% summarise(MN_Exposure = mean(Exposure)) %>% 
     mutate(subj_int = rnorm(n = num_subj,
                             mean = 0,
@@ -86,8 +84,8 @@ W <- t(subj_mat1)
 
 ```{r}
 devtools::load_all(recompile=T)
-iter_max <- 50 
-warmup <- 50
+iter_max <- 500 
+warmup <- 250
 sink("~/Desktop/Routput.txt")
 fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
                       u_s = as.matrix(u_crs),
@@ -98,15 +96,15 @@ fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
                       adapt_delta = .65,
                       warmup = warmup, 
                       iter_max = iter_max,
-                      max_treedepth = 11,
+                      max_treedepth = 10,
                       seed = 2341,
-                      diagnostics = 0)
+                      diagnostics = 1)
 sink()
 ```
 
 ```{r}
 thetas <- seq(from = -3, to =3.0, by =0.05);
-customthetas <- seq(from = X_bar$subj_int[2] - 1, to= X_bar$subj_int[2] + 1, by = 0.05)
+customthetas <- seq(from = X_bar$subj_int[1] - 1, to= X_bar$subj_int[1] + 1, by = 0.05)
 sink("~/Desktop/Routput.txt")
 out <- test_grads_glmer(y,Z,W,
                         true_b = as.matrix(X_bar$subj_int,ncol=1),
@@ -119,16 +117,16 @@ out <- test_grads_glmer(y,Z,W,
 sink()
 
 transform_thetas <- function(x) 10 / (1 + exp(-x))
-tibble(theta = (customthetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = X_bar$subj_int[2]) ,linetype = 2) 
+tibble(theta = (customthetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = X_bar$subj_int[1]) ,linetype = 2) 
 
 tibble(theta = (customthetas), grad = out$grad) %>% 
     ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  +
-    geom_vline(aes(xintercept = X_bar$subj_int[2]),linetype = 2) 
+    geom_vline(aes(xintercept = X_bar$subj_int[1]),linetype = 2) 
 
 ```
 
 
-```{r}
+```
 samples <- tibble(chain=1,
                   alpha = fit$alpha_samps,
                   delta = fit$delta_samps[,1],
@@ -136,41 +134,6 @@ samples <- tibble(chain=1,
                   beta_bar = fit$beta_bar_samps[,1],
                   theta = fit$theta_samps,
                   sigma = fit$sigma_samps,
-                  Sigma = fit$Sigma_samps,
                   acceptance = fit$acceptance) %>% mutate(ix = 1:n())
 ```
-
-
-```{r}
-samples %>% filter(acceptance==1,ix>300) %>% 
-    gather(delta,beta,beta_bar,theta,sigma,alpha,Sigma,key="Parameters",value="Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
-           (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + (Parameters=="Sigma")*sigma_b + 
-           (Parameters=="alpha")*alpha) %>% 
-    ggplot(aes(x=Samples)) + geom_density() + theme_bw() + 
-    geom_vline(aes(xintercept=Truth),linetype=2) +
-    facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
-    theme(strip.background = element_blank())
-
-
-samples %>% filter(acceptance==1,ix>300) %>% 
-    gather(delta,beta,beta_bar,theta,sigma,alpha,Sigma,key="Parameters",value="Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
-           (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + (Parameters=="Sigma")*sigma_b + 
-           (Parameters=="alpha")*alpha) %>% 
-    ggplot(aes(x=ix,y=Samples)) + geom_line() + theme_bw() + 
-    geom_vline(aes(xintercept=Truth),linetype=2) +
-    facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
-    theme(strip.background = element_blank())
-
-```
-
-```{r}
-b_mns <- colMeans(fit$b_samps[which(fit$acceptance == 1),])
-tibble(b_hat = b_mns,
-       true_b = X_bar$subj_int) %>% 
-ggplot(aes(x=b_hat,y=true_b)) + geom_point() + geom_abline(intercept = 0) + theme_bw() + ggtitle("Estimates of true vs. estimated subject intercepts") + ggsave("~/Desktop/b_ests.png",width=7,height=5)
-
-```
-
 

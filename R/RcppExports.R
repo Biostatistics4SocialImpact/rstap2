@@ -9,14 +9,8 @@ test_grads <- function(y, Z, beta_bar, beta, distances, u_crs, subj_array, subj_
     .Call(`_rstap2_test_grads`, y, Z, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed)
 }
 
-#'Estimates a STAP model with random subject intercept only
 stapdnd_glmer <- function(y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics) {
     .Call(`_rstap2_stapdnd_glmer`, y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics)
-}
-
-#'Estimates a STAP model with random subject intercept and slope 
-stapdnd_glmer2 <- function(y, Z, W, eta, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics) {
-    .Call(`_rstap2_stapdnd_glmer2`, y, Z, W, eta, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics)
 }
 
 test_grads_glmer <- function(y, Z, W, true_b, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed) {
