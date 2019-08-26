@@ -2,8 +2,6 @@ void STAP_glmer::calculate_glmer_eta(SV_glmer& svg){
 
     eta = svg.get_alpha_vector() + X_diff * svg.beta + X_mean * svg.beta_bar + Z * svg.delta;
     eta = eta + (subj_array.transpose() * ((svg.b.array() * W.array()).matrix().rowwise().sum()));
-    Rcpp::Rcout << "eta 2"  << std::endl;
-    Rcpp::Rcout << eta.head(5) << std::endl;
 
 }
 
@@ -15,7 +13,6 @@ double STAP_glmer::calculate_glmer_ll(SV_glmer& svg){
 
     out += - y.size() / 2.0 * log( M_PI * 2 * svg.sigma_sq_transformed() ); 
     out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum();
-    Rcpp::Rcout << " ll  #2 - kernel " << out << std::endl;
 
     out += - svg.b.size() / 2.0 * log(M_PI * 2 * svg.mer_var_transformed().determinant());
     for(int i = 0; i < svg.b.rows() ; i ++)
@@ -130,8 +127,6 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
 
     sgg.b_grad = precision * ((subj_array * (y-eta)).array() * W.array()).matrix();
-    Rcpp::Rcout << "Is this gradient calculation working? Part I: " << std::endl;
-    Rcpp::Rcout << sgg.b_grad.block(0,0,5,1) << std::endl;
     for(int i = 0; i <= svg.b.rows(); i ++)
         sgg.b_grad.row(i) = sgg.b_grad.row(i) - svg.b.row(i) * svg.mer_precision_transformed();
 
