@@ -100,12 +100,14 @@ class STAP_Tree_glmer
             return(svn.b);
         }
 
-        double get_Sigma_new() {
+        Eigen::MatrixXd get_Sigma_new() {
             return(svn.Sigma);
         }
 
-        double get_Sigma_new_transformed() {
-            return(svn.mer_sd_transformed());
+        Eigen::RowVectorXd get_Sigma_new_transformed() {
+            Eigen::Map<Eigen::RowVectorXd> cov_samp(svn.Sigma.data(),svn.Sigma.size());
+
+            return(cov_samp);
 
         }
 

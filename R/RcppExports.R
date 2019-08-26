@@ -9,6 +9,21 @@ test_grads <- function(y, Z, beta_bar, beta, distances, u_crs, subj_array, subj_
     .Call(`_rstap2_test_grads`, y, Z, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed)
 }
 
+#' NUTS estimation for STAP model with either subj int or subj int and slope
+#' @param y vector of continuous outcomes
+#' @param Z matrix of confounders 
+#' @param W matrix of group-level effect covariates should be num_subj x 1 or num_subj x 2
+#' @param distances array of distances
+#' @param u_crs  compressed row storage indices for distances
+#' @param subj_matrix N X n matrix that has a 1 in element ij if subject i has an outcome in y (i+j) 
+#' @param subj_n  n x 1 matrix that has 1/n_i in element i1 for the ith subject
+#' @param stap_par_code detailed code for estimation set-up - see details
+#' @param adapt_delta tuning parameter for adaptation
+#' @param iter_max  maximum number of iterations
+#' @param max_treedepth  maximum number of branches to grow for NUTS
+#' @param warmup number of iterations for which to tune sampler
+#' @param seed seed to initialize random number generator
+#' @param diagnostics -for development use only
 stapdnd_glmer <- function(y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics) {
     .Call(`_rstap2_stapdnd_glmer`, y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics)
 }

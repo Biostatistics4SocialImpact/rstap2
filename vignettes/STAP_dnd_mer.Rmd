@@ -78,21 +78,20 @@ u_crs <- as_tibble(xtabs(~id + time,data = dists, addNA = T)) %>%
 
 subj_mat1 <- as.matrix(Matrix::fac2sparse(as.factor(X_diff$id)))
 subj_n <- rep(1/3,num_subj)
-W <- t(subj_mat1)
+W <- matrix(1,nrow = num_subj,ncol=1)
 ```
 
 
 ```{r}
-devtools::load_all(recompile=T)
-iter_max <- 500 
-warmup <- 250
+iter_max <- 1000
+warmup <- 500
 sink("~/Desktop/Routput.txt")
-fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
-                      u_s = as.matrix(u_crs),
+fit <- stapdnd_glmer(y = y, Z = Z,W = W,
+                     u_crs = as.matrix(u_crs),
                       subj_matrix = subj_mat1,
                       subj_n = matrix(subj_n,ncol=1),
-                      stap_par_code = c(length(y),1,1,1,num_subj),
-                      dists_crs = dists_crs,
+                      stap_par_code = c(length(y),1,1,1,num_subj,1),
+                      distances = dists_crs,
                       adapt_delta = .65,
                       warmup = warmup, 
                       iter_max = iter_max,
@@ -102,31 +101,9 @@ fit <- stapdnd_glmer2.fit(y = y, z = Z,w = W,
 sink()
 ```
 
+
+
 ```{r}
-thetas <- seq(from = -3, to =3.0, by =0.05);
-customthetas <- seq(from = X_bar$subj_int[1] - 1, to= X_bar$subj_int[1] + 1, by = 0.05)
-sink("~/Desktop/Routput.txt")
-out <- test_grads_glmer(y,Z,W,
-                        true_b = as.matrix(X_bar$subj_int,ncol=1),
-                        beta_bar,beta,
-                        dists_crs,as.matrix(u_crs),
-                        subj_mat1,as.matrix(subj_n,ncol=1),
-                        customthetas,
-                        c(length(y),1,1,1,num_subj),
-                        seed = 1241)
-sink()
-
-transform_thetas <- function(x) 10 / (1 + exp(-x))
-tibble(theta = (customthetas), energy = out$energy) %>% ggplot(aes(x=theta,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = X_bar$subj_int[1]) ,linetype = 2) 
-
-tibble(theta = (customthetas), grad = out$grad) %>% 
-    ggplot(aes(x=theta,y=grad)) + geom_line() + theme_bw()  +
-    geom_vline(aes(xintercept = X_bar$subj_int[1]),linetype = 2) 
-
-```
-
-
-```
 samples <- tibble(chain=1,
                   alpha = fit$alpha_samps,
                   delta = fit$delta_samps[,1],
@@ -134,6 +111,56 @@ samples <- tibble(chain=1,
                   beta_bar = fit$beta_bar_samps[,1],
                   theta = fit$theta_samps,
                   sigma = fit$sigma_samps,
+                  Sigma = fit$Sigma_samps,
                   acceptance = fit$acceptance) %>% mutate(ix = 1:n())
+```
+
+
+```{r}
+samples %>% filter(acceptance==1,ix>warmup) %>% 
+    gather(delta,beta,beta_bar,theta,sigma,alpha,Sigma,key="Parameters",value="Samples") %>% 
+    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
+           (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + (Parameters=="Sigma")*sigma_b +  
+           (Parameters=="alpha")*alpha) %>% 
+    ggplot(aes(x=Samples)) + geom_density() + theme_bw() + 
+    geom_vline(aes(xintercept=Truth),linetype=2) +
+    facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
+    theme(strip.background = element_blank())
+```
+
+
+```{r}
+median_bs <- apply(fit$b_samps,2,median)
+plot(X_bar$subj_int,median_bs)
+abline(a=0,b=1)
+```
+
+
+
+```{r}
+sigma_bs <- log(seq(from = 0.01, to =2, by = 0.05 ))
+
+sink("~/Desktop/Routput.txt")
+out <- test_grads_glmer(y,Z,W,
+                        true_b = matrix(X_bar$subj_int,ncol=1),
+                        beta_bar,beta,
+                        dists_crs,as.matrix(u_crs),
+                        subj_mat1,as.matrix(subj_n,ncol=1),
+                        sigma_bs,
+                        c(length(y),1,1,1,num_subj,1),
+                        seed = 1241)
+sink()
+
+tibble(subj_sigma = exp(sigma_bs),
+       energy = out$energy) %>% 
+    ggplot(aes(x=subj_sigma,y=energy)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 1.5) ,linetype = 2) 
+
+```
+
+
+```{r}
+tibble(delta = deltas,
+       grad = out$grad) %>% 
+    ggplot(aes(x=delta,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = -.5) ,linetype = 2) 
 ```
 

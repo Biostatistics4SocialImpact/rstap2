@@ -90,9 +90,9 @@ class SV
             spc = stap_par_code_input;
             sigma = initialize_scalar(rng);
             alpha = spc(0) == 0 ? 0 : initialize_scalar(rng);
-            delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(1),rng);
-            beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(2),rng); 
-            beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(stap_par_code_input(3),rng);
+            delta = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(spc(1),rng);
+            beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(spc(2),rng); 
+            beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(spc(3),rng);
             theta = initialize_vec(stap_par_code_input(2),rng);
             if(diagnostics){
                 Rcpp::Rcout << " Initialized Parameters" << std::endl;

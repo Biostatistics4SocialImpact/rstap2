@@ -2,8 +2,7 @@
 Eigen::MatrixXd initialize_matrix(const int& num_rows,const int& num_cols, std::mt19937& rng){
 
     std::uniform_real_distribution<double> runif(-2,2);
-    Eigen::MatrixXd out(num_rows,num_cols);
-    for(int row_ix = 0; row_ix < num_rows; row_ix ++){ 
+    Eigen::MatrixXd out(num_rows,num_cols); for(int row_ix = 0; row_ix < num_rows; row_ix ++){ 
         for(int col_ix = 0; col_ix < num_cols; col_ix ++)
             out(row_ix,col_ix) = runif(rng);
     }
@@ -24,7 +23,7 @@ class SG_glmer: public SG
 {
     public:
         Eigen::MatrixXd b_grad;
-        double subj_sig_grad; 
+        Eigen::MatrixXd subj_sig_grad; 
         void print_grads(){
 
             Rcpp::Rcout << "Printing Gradients: " << std::endl;
@@ -36,7 +35,7 @@ class SG_glmer: public SG
             Rcpp::Rcout << "theta_grad: " << theta_grad << std::endl;
             Rcpp::Rcout << "sigma_grad: " << sigma_grad << std::endl;
             Rcpp::Rcout << "subj_b_grad: " << b_grad.size() << std::endl;
-            Rcpp::Rcout << "subj_b_grad: " << b_grad.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "subj_b_grad: " << b_grad.block(0,0,5,b_grad.cols()) << std::endl;
             Rcpp::Rcout << "subj_sigma_grad: " << subj_sig_grad << std::endl;
             Rcpp::Rcout << "-------------------- \n " << std::endl;
         }
@@ -47,14 +46,14 @@ class SV_glmer: public SV
     public:
         Eigen::MatrixXd b;
         Eigen::MatrixXd b_m;
-        double Sigma;
-        double S_m;
+        Eigen::MatrixXd Sigma;
+        Eigen::MatrixXd S_m;
         SV_glmer(Eigen::ArrayXi& stap_par_code_input,
                 std::mt19937& rng, const bool input_diagnostics) :
             SV(stap_par_code_input,rng,input_diagnostics)
     {
-        b = initialize_matrix(spc(4),1,rng); 
-        Sigma = initialize_scalar(rng);
+        b = initialize_matrix(spc(4),spc(5),rng); 
+        Sigma = initialize_matrix(spc(5),spc(5),rng); 
         if(diagnostics){
             Rcpp::Rcout << "Subj_sigma " << Sigma << std::endl;
             Rcpp::Rcout << "b head " << b.block(0,0,5,1) << std::endl;
@@ -74,7 +73,7 @@ class SV_glmer: public SV
             Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
             Rcpp::Rcout << "b : \n" << b.block(0,0,5,1) << std::endl;
             Rcpp::Rcout << "sigma_b : " << Sigma << std::endl;
-            Rcpp::Rcout << "sigma_b transformed : " << exp(Sigma) << std::endl;
+            Rcpp::Rcout << "sigma_b transformed : " << Sigma.exp() << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
         }
@@ -98,7 +97,7 @@ class SV_glmer: public SV
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
-            S_m = GaussianNoise_scalar(rng);
+            S_m = GaussianNoise_mat(b.cols(),b.cols(),rng);
             am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
@@ -108,16 +107,25 @@ class SV_glmer: public SV
 
         }
 
-        double mer_precision_transformed(){
-            return (pow(exp(Sigma),-2));
+        Eigen::MatrixXd mer_precision_transformed(){
+            if(Sigma.cols() == 1)
+                return (pow(exp(Sigma.array()),-2));
+            else
+                return (Sigma.inverse());
         }
 
-        double mer_sd_transformed(){
-            return(exp(Sigma));
+        Eigen::MatrixXd mer_sd_transformed(){
+            if(Sigma.cols() == 1)
+                return(exp(Sigma.array()));
+            else
+                return(Sigma);
         }
 
-        double mer_var_transformed(){
-            return(pow(exp(Sigma),2));
+        Eigen::MatrixXd mer_var_transformed(){
+            if(Sigma.cols() == 1)
+                return(pow(exp(Sigma.array()),2));
+            else
+                return(Sigma);
         }
 
         void momenta_leapfrog_other(SV_glmer& svg, double& epsilon, SG_glmer& sgg){
@@ -207,8 +215,8 @@ class SV_glmer: public SV
             out += bbm.transpose() * (1.0 / vbb.sd).matrix().asDiagonal() * bbm;
             out += tm.transpose() * (1.0 / vt.sd).matrix().asDiagonal() * tm;
             out += (sm * sm) / vs.sd   + (am * am) / va.sd;
-            out += (b_m.transpose() * b_m).sum() ;
-            out += S_m * (S_m);
+            out += b_m.transpose().squaredNorm(); 
+            out += S_m.squaredNorm();
             out = out / 2.0;
             return(out);
         }
@@ -222,28 +230,36 @@ bool get_UTI_one(SV_glmer& svgl, SV_glmer& svgr){
     out = (svgr.delta - svgl.delta).dot(svgl.dm);
     out += (svgr.beta - svgl.beta).dot(svgl.bm);
     out += (svgr.beta_bar - svgl.beta_bar).dot(svgl.bbm);
-    out += (svgr.theta - svgl.theta).dot(svgl.tm) + (svgr.sigma - svgl.sigma) * (svgl.sm);
-    out += (svgr.alpha - svgl.alpha) * svgl.am;
-    out += (svgr.Sigma - svgl.Sigma) * svgl.S_m;
-    out += ((svgr.b - svgl.b).transpose() * svgl.b_m).sum();
+    out += (svgr.theta - svgl.theta).dot(svgl.tm);
+    out += pow((svgr.sigma - svgl.sigma) * (svgl.sm),2);
+    out += pow((svgr.alpha - svgl.alpha) * svgl.am,2);
+    out += ((svgr.Sigma - svgl.Sigma).array() * svgl.S_m.array()).matrix().squaredNorm();
+    out += (svgr.b.col(0) - svgl.b.col(0)).dot(svgl.b_m.col(0));
+    if(svgr.b.cols()>1)
+        out += (svgr.b.col(1) - svgl.b.col(1)).dot(svgl.b_m.col(1));
     out = out / 2.0;
 
-    return((out >=0));
+    return((out >= 0));
 
 }
 
 bool get_UTI_two(SV_glmer& svgl,SV_glmer& svgr){
 
     double out;
-    out = (svgr.delta - svgl.delta).dot(svgr.dm) + (svgr.beta - svgl.beta).dot(svgr.bm);
-    out += (svgr.beta_bar - svgl.beta_bar).dot(svgr.bbm) +  (svgr.theta - svgl.theta).dot(svgr.tm);
-    out += (svgr.sigma - svgl.sigma) * (svgr.sm);
-    out += (svgr.alpha - svgl.alpha) * svgr.am;
-    out += (svgr.Sigma - svgl.Sigma) * svgr.S_m;
-    out += ((svgr.b - svgl.b).transpose() * svgr.b_m).sum();
+    out = (svgr.delta - svgl.delta).dot(svgr.dm);
+    out += (svgr.beta - svgl.beta).dot(svgr.bm);
+    out += (svgr.beta_bar - svgl.beta_bar).dot(svgr.bbm);
+    out +=  (svgr.theta - svgl.theta).dot(svgr.tm);
+    out += pow((svgr.sigma - svgl.sigma) * (svgr.sm),2);
+    out += pow((svgr.alpha - svgl.alpha) * svgr.am,2);
+    out += ((svgr.Sigma - svgl.Sigma).array() * svgr.S_m.array() ).matrix().squaredNorm();
+    out += (svgr.b.col(0) - svgl.b.col(0)).dot(svgr.b_m.col(0));
+    if(svgr.b.cols()>1)
+        out += (svgr.b.col(1) - svgl.b.col(1)).dot(svgr.b_m.col(1));
+
     out = out / 2.0;
 
-    return((out >=0));
+    return((out >= 0));
 }
 
 class STAP_glmer: public STAP
@@ -259,9 +275,8 @@ class STAP_glmer: public STAP
                    Eigen::MatrixXd& input_W,
                    Eigen::VectorXd& input_y,
                    const bool& input_diagnostics) : 
-            STAP(input_dists,input_ucrs,input_subj_array,input_subj_n, input_Z, input_y, input_diagnostics), W(input_W)       
-            {
-            }
+
+        STAP(input_dists,input_ucrs,input_subj_array,input_subj_n, input_Z, input_y, input_diagnostics), W(input_W){}
 
         void calculate_glmer_eta(SV_glmer& svg);
 
