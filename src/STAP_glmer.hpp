@@ -89,7 +89,7 @@ class SV_glmer: public SV
             Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
             Rcpp::Rcout << "b : \n" << b.block(0,0,3,S_m.cols()) << std::endl;
             Rcpp::Rcout << "sigma_b : " << Sigma << std::endl;
-            Rcpp::Rcout << "sigma_b transformed : " << this->mer_var_transformed() << std::endl;
+            Rcpp::Rcout << "sigma_b transformed : " << mer_var_transformed() << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
         }
@@ -137,7 +137,7 @@ class SV_glmer: public SV
 
         double mer_derivative_one(int i){
             double out = 0;
-            out = 2.0 / (pow(exp(Sigma(i,i)),2) * get_rho_sq_c() );
+            out = -2.0 / (pow(exp(Sigma(i,i)),2) * get_rho_sq_c() );
             return(out);
         }
 
@@ -146,18 +146,18 @@ class SV_glmer: public SV
         }
 
         double mer_derivative_three(int i ){
-            return ( (2 * get_rho() * get_rho_derivative() ) / ( pow(exp(Sigma(i,i)),2) * get_rho_sq_c()) );
+            return( ( exp(-Sigma(0,1)) - exp(-Sigma(0,1))) / (4 * pow(exp(Sigma(i,i)),2)));
         }
 
         double mer_derivative_four(){
-            return (  get_rho_derivative() / (exp(Sigma(1,1) ) * exp(Sigma(0,0)))) ;
+            return( - exp(Sigma(0,1)) / (2 * exp(Sigma(0,0)) * exp(Sigma(1,1))));
         }
 
         double mer_ssv_1(){
             double out = 0;
             out += - b.rows();
             out += -.5 * b.col(0).dot(b.col(0)) * mer_derivative_one(0);
-            out += - .5 * (b.col(0).dot(b.col(1)) * mer_derivative_two());
+            out += - (b.col(0).dot(b.col(1)) * mer_derivative_two());
             out += -  mer_sd_transformed()(0,0) + 1;
             return(out);
         }
@@ -166,18 +166,18 @@ class SV_glmer: public SV
             double out = 0;
             out += - b.rows(); 
             out += -.5 * b.col(1).dot(b.col(1)) * mer_derivative_one(1);
-            out += -.5 *b.col(0).dot(b.col(1)) * mer_derivative_two() ;
+            out += - (b.col(0).dot(b.col(1)) * mer_derivative_two()) ;
             out += - mer_sd_transformed()(1,1) + 1;
             return(out);
         }
 
         double mer_ss_cor(){
             double out = 0;
-            out += (-b.rows() * get_rho() * get_rho_derivative()) / get_rho_sq_c();
+            out += -b.rows() * (1 - exp(Sigma(0,1))) / (exp(Sigma(0,1)) + 1);
             out += - .5 * b.col(0).dot(b.col(0)) * mer_derivative_three(0) ;
             out += - .5 * b.col(1).dot(b.col(1)) * mer_derivative_three(1); 
-            out += -.5 * b.col(0).dot(b.col(1)) * mer_derivative_four();
-            out += get_rho_derivative();
+            out += - b.col(0).dot(b.col(1)) * mer_derivative_four();
+            out += log(get_rho_derivative());
             return(out);
         }
 
@@ -187,10 +187,7 @@ class SV_glmer: public SV
                 return (pow(exp(Sigma.array()),-2));
             else{
                 Eigen::MatrixXd out(Sigma.rows(),Sigma.cols());
-                out(0,0) = pow(exp(Sigma(0,0)),2);
-                out(1,1) = pow(exp(Sigma(1,1)),2);
-                out(1,0) = sigmoid_transform(Sigma(0,1),-1,1) * exp(Sigma(0,0)) * exp(Sigma(1,1));
-                out(0,1) = out(1,0);
+                out = mer_var_transformed();
                 return (out.inverse());
             }
         }

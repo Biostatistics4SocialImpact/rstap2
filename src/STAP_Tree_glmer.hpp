@@ -18,6 +18,8 @@ class STAP_Tree_glmer
             svl(input_stap_code,rng,diagnostics_input), 
             svr(input_stap_code,rng,diagnostics_input),
             svn(input_stap_code,rng,diagnostics_input) {
+            if(diagnostics_input)
+                Rcpp::Rcout << "Inside the Tree" << std::endl;
             svl.initialize_momenta(rng);
             svr.initialize_momenta(rng);
             svn.initialize_momenta(rng);
@@ -96,7 +98,7 @@ class STAP_Tree_glmer
             return(svn.sigma);
         }
 
-        Eigen::VectorXd get_b_new() {
+        Eigen::MatrixXd get_b_new() {
             return(svn.b);
         }
 
