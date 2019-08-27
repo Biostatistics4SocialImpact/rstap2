@@ -65,12 +65,19 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
 
     // theta constraints jacobian adjustment 
     out += log(10) - log(1 + exp(-svg.theta(0))) + log(1.0 - 1.0 / (1 + exp(-svg.theta(0))));
+        Rcpp::Rcout << "theta jacobian adjustment " << out << std::endl;
 
-    // exponential prior on sigma_b  + jacobian
+    // exponential prior on sigma_b's  + jacobian
     if(svg.Sigma.cols() == 1)
         out += R::dexp(svg.mer_sd_transformed()(0,0),1,TRUE) + svg.Sigma(0,0);
-    else
-        Rcpp::Rcout << "Need to implement Sigma priors" << std::endl;
+    else{
+        // sigma_1b
+        out += R::dexp(exp(svg.Sigma(0,0)),1,TRUE) + svg.Sigma(0,0);
+        // sigma_2b
+        out += R::dexp(exp(svg.Sigma(1,1)),1,TRUE) + svg.Sigma(1,1);
+        // rho uniform prior and jacobian constraint
+        out += log_sigmoid_transform_derivative(svg.Sigma(0,1),-1,1);
+    }
 
     // sigma jacobians
     out += svg.sigma;
@@ -125,17 +132,27 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.sigma_grad =  precision * (pow((y - eta ).array(),2) ).sum() - y.size();
 
     sgg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
+    sgg.b_grad = Eigen::MatrixXd::Zero(svg.b.rows(),svg.b.cols());
+    /*
+    sgg.b_grad.col(0) = precision * (subj_array * (y-eta)).col(0).array() * W.col(0).array();
 
-    sgg.b_grad = precision * ((subj_array * (y-eta)).array() * W.array()).matrix();
+    if(W.cols() == 2);
+        sgg.b_grad.col(1) = precision * (subj_array * (y-eta)).col(0).array() * W.col(1).array();
+
     for(int i = 0; i <= svg.b.rows(); i ++)
         sgg.b_grad.row(i) = sgg.b_grad.row(i) - svg.b.row(i) * svg.mer_precision_transformed();
 
+        */
     if(svg.b.cols() == 1){
         sgg.subj_sig_grad = svg.mer_precision_transformed() * pow(svg.b.array(),2).sum() - Eigen::MatrixXd::Ones(1,1) * svg.b.rows(); 
         sgg.subj_sig_grad(0,0) += - svg.mer_sd_transformed()(0,0) + 1;
     }
     else{
-        sgg.subj_sig_grad = svg.Sigma * - svg.Sigma.inverse() * svg.Sigma.inverse();
+        sgg.subj_sig_grad = Eigen::MatrixXd::Zero(2,2);
+        sgg.subj_sig_grad(0,0) =  svg.mer_ssv_1();
+        sgg.subj_sig_grad(1,1) =  svg.mer_ssv_2();
+        sgg.subj_sig_grad(0,1) = svg.mer_ss_cor();
+        sgg.subj_sig_grad(1,0) = sgg.subj_sig_grad(0,1);
     }
 
     // prior components
@@ -202,5 +219,6 @@ double STAP_glmer::FindReasonableEpsilon(SV_glmer& sv, std::mt19937& rng){
     
     if(diagnostics)
         Rcpp::Rcout << "Find Reasonable Epsilon End with epsilon =  " <<  epsilon << "\n \n \n " << std::endl;
+
     return(epsilon);
 }

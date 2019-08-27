@@ -1,3 +1,19 @@
+double sigmoid(double x){
+    return (1.0 / (1.0 + exp(-x)));
+}
+
+double sigmoid_transform(double x,double a, double b){
+    return ( a + (b - a ) * sigmoid(x));
+}
+
+double sigmoid_transform_derivative(double x, double a, double b){
+    return( (b - a) * sigmoid(x) * (1 - sigmoid(x) ) );
+}
+
+double log_sigmoid_transform_derivative(double x, double a, double b){
+    return( log((b - a)) + log(sigmoid(x)) + log((1 - sigmoid(x) )) );
+}
+
 #include <random>
 Eigen::MatrixXd initialize_matrix(const int& num_rows,const int& num_cols, std::mt19937& rng){
 
@@ -56,7 +72,7 @@ class SV_glmer: public SV
         Sigma = initialize_matrix(spc(5),spc(5),rng); 
         if(diagnostics){
             Rcpp::Rcout << "Subj_sigma " << Sigma << std::endl;
-            Rcpp::Rcout << "b head " << b.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "b head " << b.block(0,0,5,spc(5)) << std::endl;
         }
     }
         void print_pars(){
@@ -71,9 +87,9 @@ class SV_glmer: public SV
             Rcpp::Rcout << "theta_transformed: " << 10 / (1 + exp(-theta(0))) << std::endl;
             Rcpp::Rcout << "sigma: " << sigma << std::endl;
             Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
-            Rcpp::Rcout << "b : \n" << b.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "b : \n" << b.block(0,0,3,S_m.cols()) << std::endl;
             Rcpp::Rcout << "sigma_b : " << Sigma << std::endl;
-            Rcpp::Rcout << "sigma_b transformed : " << Sigma.exp() << std::endl;
+            Rcpp::Rcout << "sigma_b transformed : " << this->mer_var_transformed() << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
         }
@@ -89,7 +105,7 @@ class SV_glmer: public SV
             Rcpp::Rcout << "tm: " << tm << std::endl;
             Rcpp::Rcout << "sm: " << sm << std::endl;
             Rcpp::Rcout << "S_m: " << S_m << std::endl;
-            Rcpp::Rcout << "b_m: \n" << b_m.block(0,0,5,1) << std::endl;
+            Rcpp::Rcout << "b_m: \n" << b_m.block(0,0,3,S_m.cols()) << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
         }
@@ -107,25 +123,102 @@ class SV_glmer: public SV
 
         }
 
+        double get_rho(){
+            return(sigmoid_transform(Sigma(0,1),-1,1));
+        }
+
+        double get_rho_derivative(){
+            return(sigmoid_transform_derivative(Sigma(0,1),-1,1));
+        }
+
+        double get_rho_sq_c(){
+            return(1 - pow(sigmoid_transform(Sigma(0,1),-1,1),2) );
+        }
+
+        double mer_derivative_one(int i){
+            double out = 0;
+            out = 2.0 / (pow(exp(Sigma(i,i)),2) * get_rho_sq_c() );
+            return(out);
+        }
+
+        double mer_derivative_two(){
+            return (get_rho() / (exp(Sigma(0,0)) * exp(Sigma(1,1))  *get_rho_sq_c()));
+        }
+
+        double mer_derivative_three(int i ){
+            return ( (2 * get_rho() * get_rho_derivative() ) / ( pow(exp(Sigma(i,i)),2) * get_rho_sq_c()) );
+        }
+
+        double mer_derivative_four(){
+            return (  get_rho_derivative() / (exp(Sigma(1,1) ) * exp(Sigma(0,0)))) ;
+        }
+
+        double mer_ssv_1(){
+            double out = 0;
+            out += - b.rows();
+            out += -.5 * b.col(0).dot(b.col(0)) * mer_derivative_one(0);
+            out += - .5 * (b.col(0).dot(b.col(1)) * mer_derivative_two());
+            out += -  mer_sd_transformed()(0,0) + 1;
+            return(out);
+        }
+
+        double mer_ssv_2(){
+            double out = 0;
+            out += - b.rows(); 
+            out += -.5 * b.col(1).dot(b.col(1)) * mer_derivative_one(1);
+            out += -.5 *b.col(0).dot(b.col(1)) * mer_derivative_two() ;
+            out += - mer_sd_transformed()(1,1) + 1;
+            return(out);
+        }
+
+        double mer_ss_cor(){
+            double out = 0;
+            out += (-b.rows() * get_rho() * get_rho_derivative()) / get_rho_sq_c();
+            out += - .5 * b.col(0).dot(b.col(0)) * mer_derivative_three(0) ;
+            out += - .5 * b.col(1).dot(b.col(1)) * mer_derivative_three(1); 
+            out += -.5 * b.col(0).dot(b.col(1)) * mer_derivative_four();
+            out += get_rho_derivative();
+            return(out);
+        }
+
+
         Eigen::MatrixXd mer_precision_transformed(){
             if(Sigma.cols() == 1)
                 return (pow(exp(Sigma.array()),-2));
-            else
-                return (Sigma.inverse());
+            else{
+                Eigen::MatrixXd out(Sigma.rows(),Sigma.cols());
+                out(0,0) = pow(exp(Sigma(0,0)),2);
+                out(1,1) = pow(exp(Sigma(1,1)),2);
+                out(1,0) = sigmoid_transform(Sigma(0,1),-1,1) * exp(Sigma(0,0)) * exp(Sigma(1,1));
+                out(0,1) = out(1,0);
+                return (out.inverse());
+            }
         }
 
         Eigen::MatrixXd mer_sd_transformed(){
             if(Sigma.cols() == 1)
                 return(exp(Sigma.array()));
-            else
-                return(Sigma);
+            else{
+                Eigen::MatrixXd out(Sigma.rows(),Sigma.cols());
+                out(0,0) = exp(Sigma(0,0));
+                out(1,1) = exp(Sigma(1,1));
+                out(0,1) = sigmoid_transform(Sigma(0,1),-1,1);
+                out(1,0) = out(0,1);
+                return(out);
+            }
         }
 
         Eigen::MatrixXd mer_var_transformed(){
             if(Sigma.cols() == 1)
                 return(pow(exp(Sigma.array()),2));
-            else
-                return(Sigma);
+            else{
+                Eigen::MatrixXd out(Sigma.rows(),Sigma.cols());
+                out(0,0) = pow(exp(Sigma(0,0)),2);
+                out(1,1) = pow(exp(Sigma(1,1)),2);
+                out(1,0) = sigmoid_transform(Sigma(0,1),-1,1) * exp(Sigma(0,0)) * exp(Sigma(1,1));
+                out(0,1) = out(1,0);
+                return(out);
+            }
         }
 
         void momenta_leapfrog_other(SV_glmer& svg, double& epsilon, SG_glmer& sgg){
@@ -215,8 +308,13 @@ class SV_glmer: public SV
             out += bbm.transpose() * (1.0 / vbb.sd).matrix().asDiagonal() * bbm;
             out += tm.transpose() * (1.0 / vt.sd).matrix().asDiagonal() * tm;
             out += (sm * sm) / vs.sd   + (am * am) / va.sd;
-            out += b_m.transpose().squaredNorm(); 
-            out += S_m.squaredNorm();
+            out += b_m.col(0).dot(b_m.col(0)); 
+            out += pow(S_m(0,0),2);
+            if(b_m.cols()==2){
+                out += b_m.col(1).dot(b_m.col(1));
+                out += pow(S_m(0,1),2);
+                out += pow(S_m(1,1),2);
+            }
             out = out / 2.0;
             return(out);
         }
@@ -233,10 +331,13 @@ bool get_UTI_one(SV_glmer& svgl, SV_glmer& svgr){
     out += (svgr.theta - svgl.theta).dot(svgl.tm);
     out += pow((svgr.sigma - svgl.sigma) * (svgl.sm),2);
     out += pow((svgr.alpha - svgl.alpha) * svgl.am,2);
-    out += ((svgr.Sigma - svgl.Sigma).array() * svgl.S_m.array()).matrix().squaredNorm();
+    out += pow((svgr.Sigma(0,0) - svgl.Sigma(0,0)) * svgl.S_m(0,0) ,2);
     out += (svgr.b.col(0) - svgl.b.col(0)).dot(svgl.b_m.col(0));
-    if(svgr.b.cols()>1)
-        out += (svgr.b.col(1) - svgl.b.col(1)).dot(svgl.b_m.col(1));
+    if(svgr.b.cols() == 2){
+        out += (svgr.b.col(1) - svgl.b.col(1)).dot(svgr.b_m.col(1));
+        out += pow((svgr.Sigma(0,1) - svgl.Sigma(0,1)) * svgr.S_m(0,1) ,2);
+        out += pow((svgr.Sigma(1,1) - svgl.Sigma(1,1)) * svgr.S_m(1,1) ,2);
+    }
     out = out / 2.0;
 
     return((out >= 0));
@@ -252,10 +353,13 @@ bool get_UTI_two(SV_glmer& svgl,SV_glmer& svgr){
     out +=  (svgr.theta - svgl.theta).dot(svgr.tm);
     out += pow((svgr.sigma - svgl.sigma) * (svgr.sm),2);
     out += pow((svgr.alpha - svgl.alpha) * svgr.am,2);
-    out += ((svgr.Sigma - svgl.Sigma).array() * svgr.S_m.array() ).matrix().squaredNorm();
+    out += pow((svgr.Sigma(0,0) - svgl.Sigma(0,0)) * svgr.S_m(0,0) ,2);
     out += (svgr.b.col(0) - svgl.b.col(0)).dot(svgr.b_m.col(0));
-    if(svgr.b.cols()>1)
+    if(svgr.b.cols()==2){
         out += (svgr.b.col(1) - svgl.b.col(1)).dot(svgr.b_m.col(1));
+        out += pow((svgr.Sigma(0,1) - svgl.Sigma(0,1)) * svgr.S_m(0,1) ,2);
+        out += pow((svgr.Sigma(1,1) - svgl.Sigma(1,1)) * svgr.S_m(1,1) ,2);
+    }
 
     out = out / 2.0;
 

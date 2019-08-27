@@ -105,7 +105,9 @@ class STAP_Tree_glmer
         }
 
         Eigen::RowVectorXd get_Sigma_new_transformed() {
-            Eigen::Map<Eigen::RowVectorXd> cov_samp(svn.Sigma.data(),svn.Sigma.size());
+            Eigen::MatrixXd out(svn.Sigma.rows(),svn.Sigma.cols());
+            out = svn.mer_var_transformed();
+            Eigen::Map<Eigen::RowVectorXd> cov_samp(out.data(),out.size());
 
             return(cov_samp);
 
