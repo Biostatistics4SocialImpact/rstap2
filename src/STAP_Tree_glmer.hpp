@@ -98,8 +98,12 @@ class STAP_Tree_glmer
             return(svn.sigma);
         }
 
-        Eigen::MatrixXd get_b_new() {
+        Eigen::VectorXd get_b_new() {
             return(svn.b);
+        }
+
+        Eigen::VectorXd get_b_slope_new(){
+          return(svn.b_slope);
         }
 
         Eigen::MatrixXd get_Sigma_new() {

@@ -8,6 +8,24 @@
 #include "STAP_MathHelpers.hpp"
 #include "STAP.hpp"
 #include "STAP_Tree.hpp"
+
+bool adapt_delta_check(int &iter_ix,const int& warmup){
+
+    if(iter_ix < 125) 
+      return(1);
+    else if(iter_ix >= 125 && iter_ix < 175)
+      return(0);
+    else if(iter_ix >= 175 && iter_ix <  250)
+      return(1);
+    else if(iter_ix >= 250 && iter_ix < 325)
+      return(0);
+    else if(iter_ix <= warmup)
+      return(1);
+    else
+      return(0);
+}
+
+
 // RcppEigen so that the build process will know what to do
 //
 // [[Rcpp::depends(RcppEigen)]]
@@ -85,6 +103,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                std::string str = iter_ix <= warmup ? "\t [Warmup] " : "\t [Sampling]";
                 Rcpp::Rcout << "Beginning of iteration: " << iter_ix << " / " << iter_max << str  << std::endl;
            }
+           sv.update_var_scheme(iter_ix);
            sv.initialize_momenta(rng);
            log_z = stap_object.sample_u(sv,rng);
             if(diagnostics)
@@ -130,7 +149,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 }
                 epsilons(iter_ix-1) = epsilon;
               }
-            if(iter_ix <= warmup){
+
+            if(adapt_delta_check(iter_ix,warmup)){
                 H_bar = (1.0 - 1.0 / (iter_ix + t_naught)) * H_bar + (1.0 /(iter_ix + t_naught)) * (adapt_delta - tree.get_alpha_prime() / tree.get_n_alpha());
                 epsilon = exp(mu_beta - (sqrt(iter_ix) / gamma) * H_bar);
                 epsilon_bar = exp(pow(iter_ix,-kappa) * log(epsilon) + (1.0 - pow(iter_ix,-kappa)) * log(epsilon_bar));

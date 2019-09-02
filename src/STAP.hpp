@@ -35,27 +35,31 @@ class Var_Agg
         double count;
         T mean;
         T M2;
-        T sd;
+        T var;
         void initialize_first_var(int vec_len){
             count = 0.0;
             mean = Eigen::VectorXd::Zero(vec_len); 
             M2 = Eigen::VectorXd::Zero(vec_len);
-            sd = Eigen::VectorXd::Ones(vec_len);
+            var = Eigen::VectorXd::Ones(vec_len);
         }
         void initialize_first_var(){
             count = 0.0;
             mean = 0.0;
             M2 = 0.0;
-            sd = 1.0;
+            var = 1.0;
         }
-
+        // from welford's algorithm
+        // https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
         void update_var(T new_val){
             count += 1.0;
             T delta = new_val - mean;
             mean = mean + delta / count;
             T delta_two = new_val - mean;
             M2 = M2 + delta * delta_two;
-            sd = M2 / (count - 1);
+        }
+
+        void implement_var(){
+            var = M2 / (count - 1);
         }
 
 };
@@ -116,43 +120,15 @@ class SV
             tm = GaussianNoise(theta.size(),rng);
         }
 
-        void initialize_momenta(int& iter_ix,std::mt19937& rng){
-
-            if(iter_ix == 1){
-                sm = GaussianNoise_scalar(rng);
-                am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
-                dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
-                bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
-                bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
-                tm = GaussianNoise(theta.size(),rng);
-            }else{
-                sm = GaussianNoise_scalar(rng);
-                am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
-                dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng);
-                bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
-                bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
-                tm = GaussianNoise(theta.size(),rng);
-                am = am * va.sd;
-                dm = dm.array() * vd.sd;
-                bm = bm.array() * vb.sd;
-                bbm = bbm.array() * vbb.sd;
-                tm = tm.array() * vt.sd;
-            }
-        }
-
         void print_pars(){
 
             Rcpp::Rcout << "Printing Parameters... " << std::endl;
-            Rcpp::Rcout << "------------------------ " << std::endl;
-            Rcpp::Rcout << "alpha: " << alpha << std::endl;
-            Rcpp::Rcout << "delta: " << delta << std::endl;
-            Rcpp::Rcout << "beta: " << beta << std::endl;
-            Rcpp::Rcout << "beta_bar: " << beta_bar << std::endl;
-            Rcpp::Rcout << "theta: " << theta << std::endl;
-            Rcpp::Rcout << "theta_transformed: " << 10 / (1 + exp(-theta(0))) << std::endl;
-            Rcpp::Rcout << "sigma: " << sigma << std::endl;
-            Rcpp::Rcout << "sigma_transformed: " << exp(sigma) << std::endl;
-            Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
+            Rcpp::Rcout << "-------------------------------------------------------------------------- " << std::endl;
+            Rcpp::Rcout << "alpha: " << alpha <<  " | " << "delta: " << delta << " | beta: " << beta << 
+              " | beta_bar: " << beta_bar << std::endl;
+            Rcpp::Rcout << "theta: " << theta << " |  theta_ " << 10/ (1 + exp(-theta(0))) <<
+                " | sigma: " << sigma << " |  sigma_ " << exp(sigma) << std::endl;
+            Rcpp::Rcout << "-------------------------------------------------------------------------- " << std::endl;
 
         }
 
@@ -194,12 +170,12 @@ class SV
                 Rcpp::Rcout << "initial positions " << std::endl;
                 sv.print_pars();
             }
-            alpha = sv.alpha + epsilon * am;
-            delta = sv.delta + epsilon * dm;
-            beta = sv.beta + epsilon * bm;
-            beta_bar = sv.beta_bar + epsilon * bbm; 
-            theta = sv.theta + epsilon * tm;
-            sigma = sv.sigma + epsilon * sm;
+            alpha = sv.alpha + epsilon * sv.va.var  * am;
+            delta = sv.delta.array() + epsilon * sv.vd.var * dm.array();
+            beta = sv.beta.array() + epsilon * sv.vb.var * bm.array();
+            beta_bar = sv.beta_bar.array() + epsilon * sv.vbb.var * bbm.array(); 
+            theta = sv.theta.array() + epsilon * sv.vt.var * tm.array();
+            sigma = sv.sigma + epsilon * sv.vs.var * sm;
             if(diagnostics){
                 Rcpp::Rcout << "updated positions: " << std::endl;
                 this->print_pars();
@@ -238,65 +214,79 @@ class SV
             sigma = other.sigma;
         }
 
-        void update_var(int iter_ix,SV& sv){
-
-            if(iter_ix <=75){
-                if(iter_ix == 1){
-                    va.initialize_first_var();
-                    vb.initialize_first_var(beta.size());
-                    vbb.initialize_first_var(beta_bar.size());
-                    vt.initialize_first_var(theta.size());
-                    vs.initialize_first_var();
-                }else{
-                    va.update_var(sv.alpha);
-                    vd.update_var(sv.delta);
-                    vb.update_var(sv.beta);
-                    vbb.update_var(sv.beta_bar);
-                    vt.update_var(sv.theta);
-                    vs.update_var(sv.sigma);
-                }
-            }else if( iter_ix < 200){
-              if(iter_ix % 25 == 0){
-                va.initialize_first_var();
-                vb.initialize_first_var(beta.size());
-                vbb.initialize_first_var(beta_bar.size());
-                vt.initialize_first_var(theta.size());
-                vs.initialize_first_var();
-            }else{
-                va.update_var(sv.alpha);
-                vd.update_var(sv.delta);
-                vb.update_var(sv.beta);
-                vbb.update_var(sv.beta_bar);
-                vt.update_var(sv.theta);
-                vs.update_var(sv.sigma);
-            }
-          }else if(iter_ix <= 250){
-                if(iter_ix == 200){
-                va.initialize_first_var();
-                vb.initialize_first_var(beta.size());
-                vbb.initialize_first_var(beta_bar.size());
-                vt.initialize_first_var(theta.size());
-                vs.initialize_first_var();
-            }else{
-                va.update_var(sv.alpha);
-                vd.update_var(sv.delta);
-                vb.update_var(sv.beta);
-                vbb.update_var(sv.beta_bar);
-                vt.update_var(sv.theta);
-                vs.update_var(sv.sigma);
-            }
+        void initialize_vars(){
+            va.initialize_first_var();
+            vb.initialize_first_var(beta.size());
+            vbb.initialize_first_var(beta_bar.size());
+            vt.initialize_first_var(theta.size());
+            vs.initialize_first_var();
         }
 
+        void update_vars(){
+            va.update_var(alpha);
+            vd.update_var(delta);
+            vb.update_var(beta);
+            vbb.update_var(beta_bar);
+            vt.update_var(theta);
+            vs.update_var(sigma);
+        
+        }
+
+        void implement_vars(){
+            va.implement_var();
+            vd.implement_var();
+            vb.implement_var();
+            vbb.implement_var();
+            vt.implement_var();
+            vs.implement_var();
+        }
+
+        void update_var_scheme(int &iter_ix){
+
+            if(iter_ix == 1)
+              initialize_vars();
+            /*
+            if(iter_ix >75 && iter_ix <=125){
+              update_vars();
+              if(iter_ix == 125){
+                implement_vars();
+                print_vars();
+              }
+            }
+
+            if(iter_ix >=175 && iter_ix <=250 ){
+              if(iter_ix == 175 )
+                initialize_vars();
+              else
+                update_vars();
+              if(iter_ix == 250){
+                implement_vars();
+                print_vars();
+              }
+            }
+
+            if(iter_ix == 325)
+              initialize_vars();
+            if(iter_ix>325 && iter_ix <500)
+              update_vars();
+            if(iter_ix==500){
+              implement_vars();
+              print_vars();
+            }
+            */
         }
 
         void print_vars(){
 
             Rcpp::Rcout << "Print variance count parameters" << std::endl;
-            Rcpp::Rcout << "alpha count" << va.count << std::endl;
-            Rcpp::Rcout << "beta count" << vb.count << std::endl;
-            Rcpp::Rcout << "beta bar count" << vbb.count << std::endl;
-            Rcpp::Rcout << "theta count" << vt.count << std::endl;
-            Rcpp::Rcout << "sigma count" << vs.count << std::endl;
+            Rcpp::Rcout << "=============================================" << std::endl;
+            Rcpp::Rcout << "alpha count " << va.count << " | beta count " << vb.count << " | beta_bar count " <<
+              vbb.count << " | theta count " << vt.count << " | sigma count " << vs.count << std::endl;
+            Rcpp::Rcout << "Print variance estimates parameters" << std::endl;
+            Rcpp::Rcout << "alpha var " << va.var << " | beta var " << vb.var << " | beta_bar var " <<
+              vbb.var << " | theta var " << vt.var << " | sigma var " << vs.var << std::endl;
+            Rcpp::Rcout << "=============================================" << std::endl;
+
         }
             
         Eigen::VectorXd get_alpha_vector(){
@@ -321,11 +311,11 @@ class SV
 
         double kinetic_energy(){
             double out = 0;
-            out = dm.transpose() * (1.0 / vd.sd).matrix().asDiagonal() * dm;
-            out += bm.transpose() * (1.0 / vb.sd).matrix().asDiagonal() * bm;
-            out += bbm.transpose() * (1.0 / vbb.sd).matrix().asDiagonal() * bbm;
-            out += tm.transpose() * (1.0 / vt.sd).matrix().asDiagonal() * tm;
-            out += (sm * sm) / vs.sd   + (am * am) / va.sd;
+            out = dm.transpose() * (vd.var).matrix().asDiagonal() * dm;
+            out += bm.transpose() * (vb.var).matrix().asDiagonal() * bm;
+            out += bbm.transpose() * (vbb.var).matrix().asDiagonal() * bbm;
+            out += tm.transpose() * (vt.var).matrix().asDiagonal() * tm;
+            out += (sm * sm) * vs.var   + (am * am) * va.var;
             out = out / 2.0;
             return(out);
         }
@@ -335,7 +325,11 @@ class SV
 bool get_UTI_one(SV& svl,SV& svr){
 
     double out;
-    out = (svr.delta - svl.delta).dot(svl.dm) + (svr.beta - svl.beta).dot(svl.bm) + (svr.beta_bar - svl.beta_bar).dot(svl.bbm) + (svr.theta - svl.theta).dot(svl.tm) + (svr.sigma - svl.sigma) * (svl.sm);
+    out = (svr.delta - svl.delta).dot(svl.dm);
+    out += (svr.beta - svl.beta).dot(svl.bm);
+    out += (svr.beta_bar - svl.beta_bar).dot(svl.bbm);
+    out += (svr.theta - svl.theta).dot(svl.tm);
+    out += (svr.sigma - svl.sigma) * (svl.sm);
     out += (svr.alpha - svl.alpha) * svl.am;
     out = out / 2.0;
 
@@ -345,8 +339,10 @@ bool get_UTI_one(SV& svl,SV& svr){
 bool get_UTI_two(SV& svl,SV& svr){
 
     double out;
-    out = (svr.delta - svl.delta).dot(svr.dm) + (svr.beta - svl.beta).dot(svr.bm);
-    out += (svr.beta_bar - svl.beta_bar).dot(svr.bbm) +  (svr.theta - svl.theta).dot(svr.tm);
+    out = (svr.delta - svl.delta).dot(svr.dm);
+    out += (svr.beta - svl.beta).dot(svr.bm);
+    out += (svr.beta_bar - svl.beta_bar).dot(svr.bbm);
+    out +=  (svr.theta - svl.theta).dot(svr.tm);
     out += (svr.sigma - svl.sigma) * (svr.sm);
     out += (svr.alpha - svl.alpha) * svr.am;
     out = out / 2.0;

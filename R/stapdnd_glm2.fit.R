@@ -28,11 +28,12 @@ stapdnd_glm2.fit <- function(y,z,
                             seed,
                             diagnostics,
                             cores = 1,
-                            prior_dnd = normal(),
+                            prior_stap = normal(),
                             prior_intercept = normal(),
                             prior_bar = normal(),
                             prior_theta = lognormal(),
-                            prior_sigma = cauchy()
+                            prior_sigma = cauchy(),
+                            include_warmup = FALSE,
                            ){
 
 
@@ -45,12 +46,18 @@ stapdnd_glm2.fit <- function(y,z,
     if(link != "identity")
          stop("'link' must be one of", paste( supported_links, collapse = ', '))
     
-    fit <- stap_diffndiff(y = y,Z = z,
-                          distances = dists_crs,u_crs = u_s,
-                          subj_array = subj_matrix,subj_n = subj_n,
+    fit <- stap_diffndiff(y = y,
+                          Z = z,
+                          distances = dists_crs,
+                          u_crs = u_s,
+                          subj_array = subj_matrix,
+                          subj_n = subj_n,
                           stap_par_code = stap_par_code,
-                          adapt_delta = adapt_delta,iter_max = iter_max,
-                          max_treedepth = max_treedepth,warmup = warmup,
-                          seed = seed,diagnostics = diagnostics)
+                          adapt_delta = adapt_delta, 
+                          iter_max = iter_max,
+                          max_treedepth = max_treedepth,
+                          warmup = warmup,
+                          seed = seed,
+                          diagnostics = diagnostics)
 
 }

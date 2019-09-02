@@ -11,13 +11,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tidyverse)
-library(rstap2)
+# library(rstap2)
 ```
 
 
 ```{r}
 set.seed(24)
-num_subj <- 800
+num_subj <- 100
 num_bef <- 10
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
@@ -76,20 +76,22 @@ subj_n <- rep(1/3,num_subj)
 
 
 ```{r}
+sink("~/Desktop/Routput.txt")
 iter_max <- 1500
 warmup <- 500
-fit <- stapdnd_glm2.fit(y = y, z = Z,
-                      u_s = as.matrix(u_crs),
-                      subj_matrix = subj_mat1,
+fit <- stap_diffndiff(y = y, Z = Z,
+                      u_crs = as.matrix(u_crs),
+                      subj_array = subj_mat1,
                       subj_n = matrix(subj_n,ncol=1),
                       stap_par_code = c(length(y),1,1,1,1),
-                      dists_crs = dists_crs,
+                      distances = dists_crs,
                       adapt_delta = .65,
                       warmup = warmup, 
                       iter_max = iter_max,
                       max_treedepth = 10,
                       seed = 2341,
                       diagnostics = 0)
+sink()
 ```
 
 

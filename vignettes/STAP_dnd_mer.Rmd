@@ -16,7 +16,7 @@ library(tidyverse)
 
 ```{r}
 set.seed(24)
-num_subj <- 200
+num_subj <- 100
 num_bef <- 10
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
@@ -85,8 +85,8 @@ W <- subj_mat2
 
 
 ```{r}
-iter_max <- 1000
-warmup <- 500
+iter_max <- 150
+warmup <- 75
 sink("~/Desktop/Routput.txt")
 fit <- stapdnd_glmer(y = y, Z = Z,W = W,
                      u_crs = as.matrix(u_crs),
@@ -98,8 +98,8 @@ fit <- stapdnd_glmer(y = y, Z = Z,W = W,
                       warmup = warmup, 
                       iter_max = iter_max,
                       max_treedepth = 10,
-                      seed = 2341,
-                      diagnostics = 1)
+                      seed = 4423,
+                      diagnostics = 0)
 sink()
 ```
 
@@ -113,17 +113,26 @@ samples <- tibble(chain=1,
                   beta_bar = fit$beta_bar_samps[,1],
                   theta = fit$theta_samps,
                   sigma = fit$sigma_samps,
-                  Sigma = fit$Sigma_samps[,1],
+                  Sigma = sqrt(fit$Sigma_samps[,1]),
+                  Sigma_2 = sqrt(fit$Sigma_samps[,4]),
+                  rho = purrr::map_dbl(1:iter_max,function(x) cov2cor(matrix(fit$Sigma_samps[x,],nrow=2,ncol=2))[1,2]),
                   acceptance = fit$acceptance) %>% mutate(ix = 1:n())
 ```
 
 
 ```{r}
 samples %>% filter(acceptance==1,ix>warmup) %>% 
-    gather(delta,beta,beta_bar,theta,sigma,alpha,Sigma,key="Parameters",value="Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
-           (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + (Parameters=="Sigma")*sigma_b +  
-           (Parameters=="alpha")*alpha) %>% 
+    gather(delta,beta,beta_bar,theta,sigma,alpha,Sigma_2,rho,
+           Sigma,key="Parameters",value="Samples") %>% 
+    mutate(Truth = (Parameters=="beta")*beta +
+               (Parameters =="theta")*theta_s +
+               (Parameters=="sigma")*sigma + 
+               (Parameters=="delta") *delta +
+               (Parameters=="beta_bar")*beta_bar +
+               (Parameters=="Sigma")*sigma_b +  
+               (Parameters=="Sigma_2")*1+
+               (Parameters=="rho")*0 +
+               (Parameters=="alpha")*alpha) %>% 
     ggplot(aes(x=Samples)) + geom_density() + theme_bw() + 
     geom_vline(aes(xintercept=Truth),linetype=2) +
     facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
@@ -170,6 +179,6 @@ tibble(subj_sigma = sigma_bs,
 ```{r,echo=F}
 tibble(sbs = sigma_bs,
        grad = out$grad) %>%
-    ggplot(aes(x=sbs,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = -.138) ,linetype = 2)
+    ggplot(aes(x=sbs,y=grad)) + geom_line() + theme_bw()  + geom_vline(aes(xintercept = 22) ,linetype = 2)
 ```
 

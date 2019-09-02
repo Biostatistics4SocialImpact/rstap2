@@ -1,7 +1,8 @@
 void STAP_glmer::calculate_glmer_eta(SV_glmer& svg){
 
     eta = svg.get_alpha_vector() + X_diff * svg.beta + X_mean * svg.beta_bar + Z * svg.delta;
-    eta = eta + subj_array.transpose() * svg.b.col(0) +  W.transpose() * svg.b.col(1)    ;
+    eta = eta + subj_array.transpose() * svg.b;
+    eta = eta +  W.transpose() * svg.b_slope;
 
 }
 
@@ -15,8 +16,18 @@ double STAP_glmer::calculate_glmer_ll(SV_glmer& svg){
     out += - .5 * svg.precision_transformed() * (pow((y - eta ).array(),2)).sum();
 
     out += - svg.b.rows() / 2.0 * log(M_PI * 2 * svg.mer_var_transformed().determinant());
-    for(int i = 0; i < svg.b.rows() ; i ++)
-        out += - .5  * svg.b.row(i) * svg.mer_precision_transformed() * svg.b.row(i).transpose(); 
+    if(svg.Sigma.cols()==2){
+        Eigen::MatrixXd b_matrix(svg.b.rows(),2);
+        b_matrix << svg.b, svg.b_slope;
+        for(int i = 0; i < svg.b.rows() ; i ++)
+            out += - .5  * b_matrix.row(i) * svg.mer_precision_transformed() * b_matrix.row(i).transpose(); 
+    }
+    else{
+      Eigen::MatrixXd b_matrix(svg.b.cols(),1);
+      b_matrix << svg.b;
+      for(int i = 0; i < svg.b.rows() ; i ++)
+          out += - .5  * b_matrix.row(i) * svg.mer_precision_transformed() * b_matrix.row(i).transpose(); 
+    }
 
     return(out);
 }
@@ -139,16 +150,40 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.sigma_grad =  precision * (pow((y - eta ).array(),2) ).sum() - y.size();
 
     sgg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
-    sgg.b_grad =  Eigen::MatrixXd::Zero(svg.b.rows(),svg.b.cols());
-    sgg.b_grad.col(0) = (precision * (subj_array * (y-eta)));
-    if(svg.b.cols() == 2)
-        sgg.b_grad.col(1) =  (precision * (W * (y-eta))  );
-    Rcpp::Rcout << " eta" << eta.head(5) <<  std::endl;
+    sgg.b_grad = (precision * (subj_array * (y-eta)));
 
-    for(int i = 0; i <= svg.b.rows(); i ++)
-        sgg.b_grad.row(i) = sgg.b_grad.row(i) - svg.b.row(i) * svg.mer_precision_transformed();
+    if(svg.Sigma.cols()==2){
+        sgg.b_slope_grad =  (precision * (W * (y-eta))  ); 
+        Eigen::MatrixXd b_matrix(svg.b.rows(),2);
+        Eigen::MatrixXd b_grad_out(svg.b.rows(),2);
+        b_grad_out = Eigen::MatrixXd::Zero(svg.b.rows(),2);
+        b_matrix << svg.b, svg.b_slope;
+        Rcpp::Rcout << "residual b gradient" << sgg.b_slope_grad.head(5) << std::endl;
+        Rcpp::Rcout << "subject level precision" << svg.mer_precision_transformed() << std::endl;
+        for(int i = 0; i <= svg.b.rows(); i ++){
+            if(i==0){
+                Rcpp::Rcout << "b_matrix: " << b_matrix.row(i) << std::endl;
+                Rcpp::Rcout << "b_mat * Sigma " << b_matrix.row(i) * svg.mer_precision_transformed() << std::endl;
+                Rcpp::Rcout << "b_grad_out.row(0)" << b_grad_out.row(0) << std::endl;
+            }
+            b_grad_out.row(i) = - b_matrix.row(i) * svg.mer_precision_transformed();
+            if(i==0){
+              Rcpp::Rcout << "b prior grad: " << b_grad_out.row(0) << std::endl;
+              Rcpp::Rcout << "is" << b_grad_out(0,1) << std::endl;
+            }
+        }
+        Rcpp::Rcout << "b prior grad: " << b_grad_out.block(0,0,5,2) << std::endl;
+        sgg.b_grad = sgg.b_grad + b_grad_out.col(0);
+        sgg.b_slope_grad = sgg.b_slope_grad + b_grad_out.col(1);
+    }
+    else{
+        sgg.b_grad = sgg.b_grad - svg.b * svg.mer_precision_transformed()(0,0);
+        sgg.b_slope_grad =  Eigen::VectorXd::Zero(svg.b.rows());
+    }
+    sgg.b_slope_grad(0) = 0;
 
-    if(svg.b.cols() == 1){
+
+    if(svg.Sigma.cols() == 1){
         sgg.subj_sig_grad = svg.mer_precision_transformed() * pow(svg.b.array(),2).sum() - Eigen::MatrixXd::Ones(1,1) * svg.b.rows(); 
         sgg.subj_sig_grad(0,0) += - svg.mer_sd_transformed()(0,0) + 1;
     }
@@ -156,7 +191,7 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
         sgg.subj_sig_grad = Eigen::MatrixXd::Zero(2,2);
         sgg.subj_sig_grad(0,0) =  svg.mer_ssv_1();
         sgg.subj_sig_grad(1,1) =  svg.mer_ssv_2();
-        sgg.subj_sig_grad(0,1) = svg.mer_ss_cor();
+        sgg.subj_sig_grad(0,1) =  svg.mer_ss_cor();
         sgg.subj_sig_grad(1,0) = sgg.subj_sig_grad(0,1);
     }
 
