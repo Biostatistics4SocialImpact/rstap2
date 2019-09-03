@@ -78,7 +78,7 @@ subj_n <- rep(1/3,num_subj)
 ```{r}
 sink("~/Desktop/Routput.txt")
 iter_max <- 1500
-warmup <- 500
+warmup <- 600
 fit <- stap_diffndiff(y = y, Z = Z,
                       u_crs = as.matrix(u_crs),
                       subj_array = subj_mat1,

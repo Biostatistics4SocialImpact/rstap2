@@ -86,7 +86,7 @@ W <- subj_mat2
 
 ```{r}
 iter_max <- 150
-warmup <- 75
+warmup <- 50
 sink("~/Desktop/Routput.txt")
 fit <- stapdnd_glmer(y = y, Z = Z,W = W,
                      u_crs = as.matrix(u_crs),
@@ -99,7 +99,7 @@ fit <- stapdnd_glmer(y = y, Z = Z,W = W,
                       iter_max = iter_max,
                       max_treedepth = 10,
                       seed = 4423,
-                      diagnostics = 0)
+                      diagnostics = 1)
 sink()
 ```
 

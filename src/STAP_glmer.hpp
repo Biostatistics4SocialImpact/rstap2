@@ -134,66 +134,24 @@ class SV_glmer: public SV
         }
 
         double get_rho(){
+           if(Sigma.cols() == 1)
+             return(0);
+           else
             return(sigmoid_transform(Sigma(0,1),-1,1));
         }
 
         double get_rho_derivative(){
+          if(Sigma.cols()==1)
+            return(0);
+          else
             return(sigmoid_transform_derivative(Sigma(0,1),-1,1));
         }
 
         double get_rho_sq_c(){
+          if(Sigma.cols() == 1)
+            return(0);
+          else
             return(1 - pow(sigmoid_transform(Sigma(0,1),-1,1),2) );
-        }
-
-        double mer_derivative_one(int i){
-            double out = 0;
-            out = -2.0 / (pow(exp(Sigma(i,i)),2) * get_rho_sq_c() );
-            return(out);
-        }
-
-        double mer_derivative_two(){
-            return (get_rho() / (exp(Sigma(0,0)) * exp(Sigma(1,1))  *get_rho_sq_c()));
-        }
-
-        double mer_derivative_three(int i ){
-          double out = 0;
-          out += exp(-2*Sigma(i,i)) * .25 * exp(- Sigma(0,1)) * (exp( 2 * Sigma(0,1)) + 1);
-          return(out);
-        }
-
-        double mer_derivative_four(){
-          double out = 0;
-          out += -.25 * exp(-Sigma(0,0)) * exp(-Sigma(1,1)) *  exp(-Sigma(0,1)) * (exp(2 * Sigma(0,1)) +1 );
-          return(out);
-        }
-
-        double mer_ssv_1(){
-            double out = 0;
-            out += - b.rows();
-            out += -.5 * b.dot(b) * mer_derivative_one(0);
-            out += - (b.dot(b_slope) * mer_derivative_two());
-            out += -  mer_sd_transformed()(0,0) + 1;
-            return(out);
-        }
-
-        double mer_ssv_2(){
-            double out = 0;
-            out += - b.rows(); 
-            out += -.5 * b_slope.dot(b_slope) * mer_derivative_one(1);
-            out += - (b.dot(b_slope) * mer_derivative_two()) ;
-            out += - mer_sd_transformed()(1,1) + 1;
-            return(out);
-        }
-
-        double mer_ss_cor(){
-            double out = 0;
-            out +=  b.rows() * (get_rho() * get_rho_derivative()) / get_rho_sq_c()  ;
-            out += (get_rho_sq_c() * get_rho_derivative() + 2*pow(get_rho(),2) * get_rho_derivative()) / (pow(get_rho_sq_c(),2) * exp(Sigma(0,0)) * exp(Sigma(1,1)) ) * b.dot(b_slope)  ;
-            Rcpp::Rcout << " mer_ss_cor 2: " << out << std::endl;
-            out += - (get_rho() * get_rho_derivative()) / (pow(get_rho_sq_c(),2)) * ( b.dot(b) * exp(-2*Sigma(0,0)) + b_slope.dot(b_slope) * exp(-2 *Sigma(1,1)) ) ;
-            Rcpp::Rcout << " mer_ss_cor 3: " << out << std::endl;
-            out += log_sigmoid_transform_derivative(Sigma(0,1),-1,1);
-            return(out);
         }
 
 
@@ -231,6 +189,12 @@ class SV_glmer: public SV
                 out(0,1) = sigmoid_transform(Sigma(0,1),-1,1) * exp(Sigma(0,0)) * exp(Sigma(1,1));
                 return(out);
             }
+        }
+
+        double  mer_L_11(){
+          double out; 
+          out = exp(Sigma(1,1)) * pow(get_rho_sq_c(),.5);
+          return(out);
         }
 
         void momenta_leapfrog_other(SV_glmer& svg, double& epsilon, SG_glmer& sgg){
@@ -401,6 +365,12 @@ class STAP_glmer: public STAP
         STAP(input_dists,input_ucrs,input_subj_array,input_subj_n, input_Z, input_y, input_diagnostics), W(input_W){}
 
         void calculate_glmer_eta(SV_glmer& svg);
+
+        Eigen::VectorXd bdel(SV_glmer& svg);
+
+        Eigen::VectorXd bslope_del(SV_glmer& svg);
+
+        double rho_del(SV_glmer& svg);
 
         double calculate_glmer_ll(SV_glmer& svg);
 

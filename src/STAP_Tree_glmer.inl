@@ -78,8 +78,5 @@ void STAP_Tree_glmer::Leapfrog(STAP_glmer& stap_object,SV_glmer& sv, double epsi
 
     svn.momenta_leapfrog_self(epsilon,stap_object.sgg);
 
-    Rcpp::Rcout << "old alpha inside leapfrog" << sv.alpha << std::endl;
-    Rcpp::Rcout << "new alpha inside leapfrog" << svn.alpha << std::endl;
-
 
 }
