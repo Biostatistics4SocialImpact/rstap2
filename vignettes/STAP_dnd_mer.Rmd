@@ -85,7 +85,7 @@ W <- subj_mat2
 
 
 ```{r}
-iter_max <- 150
+iter_max <- 100
 warmup <- 50
 sink("~/Desktop/Routput.txt")
 fit <- stapdnd_glmer(y = y, Z = Z,W = W,

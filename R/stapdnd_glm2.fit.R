@@ -33,7 +33,7 @@ stapdnd_glm2.fit <- function(y,z,
                             prior_bar = normal(),
                             prior_theta = lognormal(),
                             prior_sigma = cauchy(),
-                            include_warmup = FALSE,
+                            include_warmup = FALSE
                            ){
 
 

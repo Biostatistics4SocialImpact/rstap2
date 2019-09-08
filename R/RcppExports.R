@@ -12,7 +12,7 @@ test_grads <- function(y, Z, beta_bar, beta, distances, u_crs, subj_array, subj_
 #' NUTS estimation for STAP model with either subj int or subj int and slope
 #' @param y vector of continuous outcomes
 #' @param Z matrix of confounders 
-#' @param W matrix of group-level effect covariates should be num_subj x 1 or num_subj x 2
+#' @param W matrix of group-level effect slope covariates should be num_subj x 600 
 #' @param distances array of distances
 #' @param u_crs  compressed row storage indices for distances
 #' @param subj_matrix N X n matrix that has a 1 in element ij if subject i has an outcome in y (i+j) 
@@ -28,7 +28,7 @@ stapdnd_glmer <- function(y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_p
     .Call(`_rstap2_stapdnd_glmer`, y, Z, W, distances, u_crs, subj_matrix, subj_n, stap_par_code, adapt_delta, iter_max, max_treedepth, warmup, seed, diagnostics)
 }
 
-test_grads_glmer <- function(y, Z, W, true_b, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed) {
-    .Call(`_rstap2_test_grads_glmer`, y, Z, W, true_b, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed)
+test_grads_glmer <- function(y, Z, W, true_b_int, true_b_slope, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed) {
+    .Call(`_rstap2_test_grads_glmer`, y, Z, W, true_b_int, true_b_slope, beta_bar, beta, distances, u_crs, subj_array, subj_n, par_grid, stap_par_code, seed)
 }
 
