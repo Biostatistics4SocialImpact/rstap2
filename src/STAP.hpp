@@ -99,8 +99,8 @@ class SV
             beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(spc(3),rng);
             theta = initialize_vec(stap_par_code_input(2),rng);
             if(diagnostics){
-                Rcpp::Rcout << " Initialized Parameters" << std::endl;
-                print_pars();
+//                Rcpp::Rcout << " Initialized Parameters" << std::endl;
+//                print_pars();
             }
             va.initialize_first_var();
             vs.initialize_first_var();
@@ -305,6 +305,22 @@ class SV
             return(pow(exp(sigma),2));
         }
         
+        Eigen::VectorXd adjust_delta(double &y_sd){
+            return(delta * y_sd);
+        }
+
+        Eigen::VectorXd adjust_beta(double &y_sd){
+            return(beta * y_sd);
+        }
+
+        double adjust_sigma(double &y_sd){
+            return(exp(sigma) * y_sd);
+        }
+
+        Eigen::VectorXd adjust_beta_bar(double &y_sd){
+            return(beta_bar * y_sd);
+        }
+
         Eigen::VectorXd theta_transformed(){
             return( 10 / (1 + exp(-theta.array())) );
         }
@@ -365,8 +381,10 @@ class STAP
         Eigen::MatrixXd Z;
         Eigen::VectorXd y;
         Eigen::MatrixXd X_mean; 
+        Eigen::VectorXd X_global_mean;
         Eigen::MatrixXd X_diff;
         Eigen::MatrixXd X_mean_prime;
+        Eigen::VectorXd X_mean_prime_global_mean;
         Eigen::MatrixXd X_prime_diff;
         SG sg;
         STAP(Eigen::ArrayXXd& input_dists,
@@ -433,3 +451,13 @@ class STAP
 
 
 #include "STAP.inl"
+
+double adjust_alpha(STAP &stap_object, SV &sv, double &y_bar, double &y_sd){
+  
+  stap_object.calculate_X_diff(sv.theta(0));
+  
+  return(sv.alpha - stap_object.X_global_mean.dot(sv.beta_bar) * y_sd + y_bar);
+}
+
+
+

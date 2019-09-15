@@ -18,8 +18,6 @@ class STAP_Tree_glmer
             svl(input_stap_code,rng,diagnostics_input), 
             svr(input_stap_code,rng,diagnostics_input),
             svn(input_stap_code,rng,diagnostics_input) {
-            if(diagnostics_input)
-                Rcpp::Rcout << "Inside the Tree" << std::endl;
             svl.initialize_momenta(rng);
             svr.initialize_momenta(rng);
             svn.initialize_momenta(rng);

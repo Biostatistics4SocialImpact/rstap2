@@ -59,7 +59,7 @@ double STAP::calculate_total_energy(SV& sv){
         Rcpp::Rcout << "likelihood" << out << std::endl;
     
     // alpha ~N(25,5)  prior
-    out += R::dnorm(sv.alpha,25,5,TRUE);
+    out += R::dnorm(sv.alpha,0,5,TRUE);
 
     // delta ~ N(0,3)
     if(sv.spc(1) != 0)
@@ -144,10 +144,17 @@ void STAP::calculate_X(double& theta){
 
 void STAP::calculate_X_diff(double& theta){
     
-    double transformed_theta = 10 / (1 + exp(-theta));
+  // calculate exposure matrix
+    double transformed_theta = 10.0 / (1 + exp(-theta));
     this->calculate_X(transformed_theta);
     this->calculate_X_mean();
     X_diff = X - X_mean;
+
+    // calculate exposure column means
+    X_global_mean = (X_mean).colwise().mean();
+
+    // center average exposure matrix by column
+    X_mean = (X_mean).rowwise() - X_global_mean.transpose();
 }
 
 void STAP::calculate_X_mean(){
@@ -164,10 +171,17 @@ void STAP::calculate_X_prime(double& theta_tilde,double& theta){
         for(int subj_ix = 0; subj_ix < u_crs.rows(); subj_ix ++){
             start_col = u_crs(subj_ix,bef_ix);
             range_len = u_crs(subj_ix,bef_ix+1) - start_col + 1;
-            X(subj_ix,bef_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  )).sum();
-            X_prime(subj_ix,bef_ix) = (dists.block(bef_ix,start_col,1,range_len) /  10.0 *  exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde - theta  )).sum();
+            if(range_len==0){
+              X(subj_ix,bef_ix) = 0;
+              X_prime(subj_ix,bef_ix) = 0;
+            }
+            else{
+              X(subj_ix,bef_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  )).sum();
+              X_prime(subj_ix,bef_ix) = (( 10.0 / (1+exp(-theta))) * (1 - 1.0 /(1.0 + exp(-theta)) ) ) * ( pow(theta_tilde,- 2  )) *  (dists.block(bef_ix,start_col,1,range_len)    *  exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  ) ).sum();
+            }
         }
     }
+
 }
 
 void STAP::calculate_X_mean_prime(){ 
@@ -179,10 +193,20 @@ void STAP::calculate_X_mean_prime(){
 
 void STAP::calculate_X_prime_diff(double& theta_tilde, double& theta){
 
+    // calculate exposure matrices, derivative exposure matrices
     this->calculate_X_prime(theta_tilde,theta);
     this->calculate_X_mean_prime();
+    // calculate differences
     X_prime_diff = (X_prime - X_mean_prime);
     X_diff = (X - X_mean);
+
+    // calculate exposure column means
+    X_global_mean = (X_mean).colwise().mean();
+    X_mean_prime_global_mean = (X_mean_prime).colwise().mean();
+
+    // center exposure matrices (by column) 
+    X_mean = (X_mean).rowwise() - X_global_mean.transpose();
+    X_mean_prime = (X_mean_prime).rowwise() - X_mean_prime_global_mean.transpose();
 }
 
 void STAP::calculate_gradient(SV& sv){
@@ -207,12 +231,13 @@ void STAP::calculate_gradient(SV& sv){
     sg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * sv.beta + X_mean_prime * sv.beta_bar) ).transpose();
 
     // prior/jacobian components
-    sg.alpha_grad += -1.0 / 25 * (sv.alpha - 25); 
-    sg.delta_grad = sg. delta_grad - 1.0 / 9.0 * sv.delta;
+    sg.alpha_grad += -1.0 / 25 * sv.alpha ; 
+    sg.delta_grad = sg.delta_grad - 1.0 / 9.0 * sv.delta;
     sg.beta_grad = sg.beta_grad - 1.0 / 9.0 * sv.beta;
     sg.beta_bar_grad = sg.beta_bar_grad - 1.0 / 9.0 * sv.beta_bar;
-    sg.theta_grad(0) = sg.theta_grad(0) - (2 + log(theta_transformed)) / (theta_exp + 1) ;
-    sg.theta_grad(0)  = sg.theta_grad(0) + (1 - theta_exp) / (theta_exp + 1);
+    sg.theta_grad(0) += - pow(theta_transformed,-1) * sigmoid_transform_derivative(sv.theta(0),0,10);
+    sg.theta_grad(0) += - (log(theta_transformed) -1) * pow(theta_transformed,-1) * sigmoid_transform_derivative(sv.theta(0),0,10);
+    sg.theta_grad(0)  += log_sigmoid_transform_derivative(sv.theta(0),0,10); 
     sg.sigma_grad += - (2 * sv.sigma_transformed()) / (25 + sv.sigma_sq_transformed()) + 1;
 
     if(sv.spc(1) == 0 )

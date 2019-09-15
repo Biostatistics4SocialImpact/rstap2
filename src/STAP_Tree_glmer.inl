@@ -5,8 +5,9 @@ void STAP_Tree_glmer::BuildTree(STAP_glmer& stap_object,
 
     if( j == 0 ){
         if(diagnostics)
-            Rcpp::Rcout << "Base Case Reached:" << std::endl; double total_energy_init = stap_object.calculate_glmer_energy(sv_init);
-        this->Leapfrog(stap_object,sv_proposed,v*epsilon);
+            Rcpp::Rcout << "Base Case Reached:" << std::endl;
+        double total_energy_init = stap_object.calculate_glmer_energy(sv_init);
+        Leapfrog(stap_object,sv_proposed,v*epsilon);
         double total_energy = stap_object.calculate_glmer_energy(svn);
         n_prime = u <= total_energy ? 1: 0;
         s_prime = u < (1000 + total_energy) ? 1:0;

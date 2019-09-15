@@ -80,6 +80,11 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         svl.copy_SV(sv);
         svr.copy_SV(sv);
 
+
+        double y_bar = y.mean();
+        double y_sd = sqrt((pow((y.array() - y_bar).array(),2)).sum() / y.rows()) ;
+        Eigen::VectorXd y_std = (y.array() - y_bar) / y_sd ; 
+
         int n ,s, j, vj;
         double p;
         double epsilon_bar = 1.0;
@@ -89,7 +94,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
-        STAP stap_object(distances,u_crs,subj_array,subj_n,Z,y,diagnostics);
+        STAP stap_object(distances,u_crs,subj_array,subj_n,Z,y_std,diagnostics);
         double epsilon = stap_object.FindReasonableEpsilon(sv,rng);
         double mu_beta = log(10*epsilon);
         
@@ -166,12 +171,6 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
             }
             treedepth(iter_ix-1) = j;
             if(acceptance(iter_ix-1) == 1){
-                alpha_out(iter_ix -1 ) = tree.get_alpha_new();
-                delta_out.row(iter_ix -1 ) = tree.get_delta_new();
-                beta_bar_out.row(iter_ix - 1) = tree.get_beta_bar_new();
-                beta_out.row(iter_ix-1) = tree.get_beta_new();
-                theta_out.row(iter_ix-1) = tree.get_theta_new_transformed(); 
-                sigma_out(iter_ix-1) = tree.get_sigma_new_transformed(); 
                 sv.alpha = tree.get_alpha_new();
                 sv.delta = tree.get_delta_new();
                 sv.beta_bar = tree.get_beta_bar_new();
@@ -179,6 +178,13 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 sv.theta = tree.get_theta_new();
                 sv.sigma = tree.get_sigma_new();
                 loglik_out(iter_ix-1) = stap_object.calculate_ll(sv);
+                //adjust parameters 
+                alpha_out(iter_ix -1) = adjust_alpha(stap_object,sv,y_bar,y_sd);
+                delta_out.row(iter_ix -1 ) = sv.adjust_delta(y_sd);
+                beta_bar_out.row(iter_ix - 1) = sv.adjust_beta_bar(y_sd);
+                beta_out.row(iter_ix-1) = sv.adjust_beta(y_sd);
+                theta_out.row(iter_ix-1) = tree.get_theta_new_transformed();
+                sigma_out(iter_ix-1) = sv.adjust_sigma(y_sd);
             }
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
                 iter_ix = iter_ix - 1;
@@ -228,6 +234,7 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.delta(0) = -.5;
         sv.sigma = 0;
         sv.am = 0;
+        sv.sm = 0;
         sv.bm = Eigen::VectorXd::Zero(1);
         sv.bbm =Eigen::VectorXd::Zero(1);
         sv.tm = Eigen::VectorXd::Zero(1);

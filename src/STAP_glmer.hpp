@@ -1,19 +1,3 @@
-double sigmoid(double x){
-    return (1.0 / (1.0 + exp(-x)));
-}
-
-double sigmoid_transform(double x,double a, double b){
-    return ( a + (b - a ) * sigmoid(x));
-}
-
-double sigmoid_transform_derivative(double x, double a, double b){
-    return( (b - a) * sigmoid(x) * (1 - sigmoid(x) ) );
-}
-
-double log_sigmoid_transform_derivative(double x, double a, double b){
-    return( log((b - a)) - log(1 + exp(-x)) - log(exp(x) +1)  );
-}
-
 #include <random>
 Eigen::MatrixXd initialize_matrix(const int& num_rows,const int& num_cols, std::mt19937& rng){
 
@@ -78,11 +62,13 @@ class SV_glmer: public SV
           Sigma(1,0) = Sigma(0,1);
 
 
+        /*
         if(diagnostics){
             Rcpp::Rcout << "Subj_sigma " << Sigma << std::endl;
             Rcpp::Rcout << "b head " << b.head(5) << std::endl;
             Rcpp::Rcout << "b_slope head " << b_slope.head(5) << std::endl;
         }
+        */
     }
         void print_pars(){
 
@@ -154,6 +140,14 @@ class SV_glmer: public SV
             return(1 - pow(sigmoid_transform(Sigma(0,1),-1,1),2) );
         }
 
+        Eigen::VectorXd adjust_b(){
+            return(b * exp(Sigma(0,0)) );
+        }
+
+        Eigen::VectorXd adjust_b_slope(){
+            return( exp(Sigma(1,1))*(b * get_rho() + b_slope * sqrt(get_rho_sq_c()) ));
+        }
+
 
         Eigen::MatrixXd mer_precision_transformed(){
             if(Sigma.cols() == 1)
@@ -165,17 +159,12 @@ class SV_glmer: public SV
             }
         }
 
-        Eigen::MatrixXd mer_sd_transformed(){
-            if(Sigma.cols() == 1)
-                return(exp(Sigma.array()));
-            else{
-                Eigen::MatrixXd out(Sigma.rows(),Sigma.cols());
-                out(0,0) = exp(Sigma(0,0));
-                out(1,1) = exp(Sigma(1,1));
-                out(0,1) = sigmoid_transform(Sigma(0,1),-1,1);
-                out(1,0) = out(0,1);
-                return(out);
-            }
+        double mer_sd_1(){
+            return(exp(Sigma(0,0)));
+        }
+
+        double mer_sd_2(){
+            return(exp(Sigma(1,1)));
         }
 
         Eigen::MatrixXd mer_var_transformed(){
@@ -284,14 +273,13 @@ class SV_glmer: public SV
 
         double kinetic_energy_glmer(){
             double out = 0;
-            out = dm.transpose() * (vd.var).matrix().asDiagonal() * dm;
-            out += bm.transpose() * (vb.var).matrix().asDiagonal() * bm;
-            out += bbm.transpose() * (vbb.var).matrix().asDiagonal() * bbm;
-            out += tm.transpose() * (vt.var).matrix().asDiagonal() * tm;
-            out += (sm * sm) * vs.var   + (am * am) * va.var;
+            out = dm.transpose() *  dm;
+            out += bm.transpose() *  bm;
+            out += bbm.transpose() *  bbm;
+            out += tm.transpose() * tm;
+            out += (sm * sm)   + (am * am)  ;
             out += b_m.dot(b_m);
             out += bs_m.dot(bs_m);
-            out += b_m.col(0).dot(b_m.col(0)); 
             out += pow(S_m(0,0),2);
             if(S_m.cols()>1){
                 out += pow(S_m(0,1),2);
@@ -384,3 +372,14 @@ class STAP_glmer: public STAP
 };
 
 #include "STAP_glmer.inl"
+
+double adjust_alpha(STAP_glmer &stap_object, SV_glmer &sv,double &y_bar, double &y_sd, Eigen::VectorXd &z_bar){
+  
+  double out = y_bar;
+  stap_object.calculate_X_diff(sv.theta(0));
+
+  out += y_sd * (sv.alpha - stap_object.X_global_mean.dot(sv.beta_bar) - 
+      z_bar.dot(sv.delta));
+  
+  return(out);
+}

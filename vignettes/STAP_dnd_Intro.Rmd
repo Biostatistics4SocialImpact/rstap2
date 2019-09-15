@@ -76,9 +76,8 @@ subj_n <- rep(1/3,num_subj)
 
 
 ```{r}
-sink("~/Desktop/Routput.txt")
-iter_max <- 1500
-warmup <- 600
+iter_max <- 1000
+warmup <- 500
 fit <- stap_diffndiff(y = y, Z = Z,
                       u_crs = as.matrix(u_crs),
                       subj_array = subj_mat1,
@@ -91,7 +90,6 @@ fit <- stap_diffndiff(y = y, Z = Z,
                       max_treedepth = 10,
                       seed = 2341,
                       diagnostics = 0)
-sink()
 ```
 
 
@@ -126,4 +124,13 @@ samples %>% filter(acceptance == 1, ix > warmup) %>%
     ggplot(aes(x=ix,y=Samples,color=Parameters)) + geom_path() + theme_bw() + 
     geom_hline(aes(yintercept = Truth),linetype=2) + facet_wrap(~Parameters,scales="free") + 
     ggtitle("Custom NUTS - Trace Plot") + theme(strip.background = element_blank())
+```
+
+
+
+
+```{r}
+samples %>% filter(acceptance==1,ix>warmup) %>% ggplot(aes(x=alpha,y=beta_bar)) + 
+    geom_point() + geom_smooth(method='lm',show.legend=TRUE) + theme_bw()
+
 ```
