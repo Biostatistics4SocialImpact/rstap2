@@ -42,7 +42,7 @@ double STAP_glmer::calculate_glmer_ll(SV_glmer& svg){
     out += - svg.b.rows() * log(M_PI * 2);
 
     out += -.5 * svg.b.dot(svg.b);
-    if(svg.Sigma.cols() == 2)
+    if(svg.spc(5) == 2)
       out += -.5 * svg.b_slope.dot(svg.b_slope) ;
 
     return(out);
@@ -96,15 +96,15 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
         Rcpp::Rcout << "theta jacobian adjustment " << out << std::endl;
 
     // exponential prior on sigma_b's  + jacobian
-    if(svg.Sigma.cols() == 1){
+    if(svg.spc(5) == 1){
         out += R::dnorm(svg.mer_sd_1(),0,100,TRUE) + svg.Sigma(0);
         if(diagnostics)
             Rcpp::Rcout << "Sigma priors " << out << std::endl;
     }else{
         // sigma_1b
-        out += R::dnorm(svg.mer_sd_1(),0,100,TRUE) + svg.Sigma(0);
+        out += R::dlnorm(svg.mer_sd_1(),1,1,TRUE) + svg.Sigma(0);
         // sigma_2b
-        out += R::dnorm(svg.mer_sd_2(),0,100,TRUE) + svg.Sigma(1);
+        out += R::dlnorm(svg.mer_sd_2(),1,1,TRUE) + svg.Sigma(1);
         if(diagnostics)
             Rcpp::Rcout << "Sigma priors " << out << std::endl;
         // rho uniform prior and jacobian constraint
@@ -169,14 +169,14 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.b_grad = bdel(svg);
 
     sgg.subj_sig_grad = Eigen::VectorXd(svg.Sigma.rows());
-    sgg.subj_sig_grad(0) = precision * svg.mer_sd_1()  * e.dot( (subj_array.transpose() * svg.b));
-    sgg.subj_sig_grad(0) += - 0.0001 * (svg.mer_sd_1()) + 1; // normal(0,100) prior and jacobian
+    sgg.subj_sig_grad(0) = precision * svg.mer_sd_1() * e.dot( (subj_array.transpose() * svg.b));
+    sgg.subj_sig_grad(0) +=  -(log(svg.mer_sd_1()) -1) ; // log(sigma_1) ~ normal(1,1) prior and jacobian
     sgg.b_slope_grad = Eigen::VectorXd::Zero(svg.b_slope.rows());
 
     if(svg.Sigma.rows() == 3){
         sgg.b_slope_grad = bslope_del(svg);
-        sgg.subj_sig_grad(1) =  precision *  e.dot((W.transpose() * svg.adjust_b_slope() ));
-        sgg.subj_sig_grad(1) += - 0.0001 * (svg.mer_sd_2()) + 1;
+        sgg.subj_sig_grad(1) =  precision * svg.mer_sd_2()  *   e.dot((W.transpose() * (svg.b * svg.get_rho() + svg.b_slope * sqrt(svg.get_rho_sq_c()) ) ));
+        sgg.subj_sig_grad(1) +=  - (log(svg.mer_sd_2())-1.0);
         sgg.subj_sig_grad(2) = rho_del(svg);
     }
 

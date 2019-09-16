@@ -239,10 +239,10 @@ class SV_glmer: public SV
             sm = other.sm;
             S_m = other.S_m;
             alpha = other.alpha;
+            delta = other.delta;
             beta = other.beta;
             beta_bar = other.beta_bar;
             theta = other.theta;
-            delta = other.delta;
             b = other.b;
             b_slope = other.b_slope;
             sigma = other.sigma;
@@ -251,11 +251,11 @@ class SV_glmer: public SV
 
         double kinetic_energy_glmer(){
             double out = 0;
-            out = dm.transpose() *  dm;
+            out += (sm * sm)   + (am * am)  ;
+            out += dm.transpose() *  dm;
             out += bm.transpose() *  bm;
             out += bbm.transpose() *  bbm;
             out += tm.transpose() * tm;
-            out += (sm * sm)   + (am * am)  ;
             out += b_m.dot(b_m);
             out += bs_m.dot(bs_m);
             out += S_m.dot(S_m);
