@@ -104,12 +104,13 @@ class STAP_Tree_glmer
           return(svn.b_slope);
         }
 
-        Eigen::MatrixXd get_Sigma_new() {
+        Eigen::VectorXd  get_Sigma_new() {
             return(svn.Sigma);
         }
 
         Eigen::RowVectorXd get_Sigma_new_transformed() {
-            Eigen::MatrixXd out(svn.Sigma.rows(),svn.Sigma.cols());
+          int d = svn.Sigma.rows() == 3 ? 2 : 1;
+            Eigen::MatrixXd out(d,d);
             out = svn.mer_var_transformed();
             Eigen::Map<Eigen::RowVectorXd> cov_samp(out.data(),out.size());
 

@@ -14,7 +14,7 @@ Eigen::VectorXd STAP_glmer::bdel(SV_glmer& svg){
 
 Eigen::VectorXd STAP_glmer::bslope_del(SV_glmer& svg){
 
-  return ( svg.mer_L_11() * svg.precision_transformed() * svg.mer_sd_2() * W * (y-eta));
+  return ( svg.mer_L_11() * svg.precision_transformed() * W * (y-eta) - svg.b_slope);
 }
 
 double STAP_glmer::rho_del(SV_glmer& svg){
@@ -23,7 +23,8 @@ double STAP_glmer::rho_del(SV_glmer& svg){
   double out = 0.0;
   temp = W.transpose() * (svg.b    -  svg.b_slope * svg.get_rho() / sqrt(svg.get_rho_sq_c())   );
   out =  svg.precision_transformed() * svg.mer_sd_2()  * svg.get_rho_derivative() * (y-eta).dot(temp);
-  out +=  (1.0 - exp(svg.Sigma(0,1))) / (exp(svg.Sigma(0,1)) + 1.0);
+  out +=  - 1.0 / 16.0 * svg.get_rho(); // rho prior
+  out +=  (1.0 - exp(svg.Sigma(2))) / (exp(svg.Sigma(2)) + 1.0); // jacobian
 
   return(out);
 }
@@ -96,18 +97,19 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
 
     // exponential prior on sigma_b's  + jacobian
     if(svg.Sigma.cols() == 1){
-        out += R::dnorm(svg.mer_sd_1(),0,100,TRUE) + svg.Sigma(0,0);
+        out += R::dnorm(svg.mer_sd_1(),0,100,TRUE) + svg.Sigma(0);
         if(diagnostics)
             Rcpp::Rcout << "Sigma priors " << out << std::endl;
     }else{
         // sigma_1b
-        out += R::dnorm(svg.mer_sd_1(),0,100,TRUE) + svg.Sigma(0,0);
+        out += R::dnorm(svg.mer_sd_1(),0,100,TRUE) + svg.Sigma(0);
         // sigma_2b
-        out += R::dnorm(svg.mer_sd_2(),0,100,TRUE) + svg.Sigma(1,1);
+        out += R::dnorm(svg.mer_sd_2(),0,100,TRUE) + svg.Sigma(1);
         if(diagnostics)
             Rcpp::Rcout << "Sigma priors " << out << std::endl;
         // rho uniform prior and jacobian constraint
-        out += log_sigmoid_transform_derivative(svg.Sigma(0,1),-1,1);
+        out += R::dnorm(svg.get_rho(),0,.25,TRUE);
+        out += log_sigmoid_transform_derivative(svg.Sigma(2),-1,1);
         if(diagnostics)
             Rcpp::Rcout << "corr constraint " << out << std::endl;
     }
@@ -166,17 +168,16 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.theta_grad = precision * (e.transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
     sgg.b_grad = bdel(svg);
 
-    sgg.subj_sig_grad = Eigen::MatrixXd(svg.Sigma.cols(),svg.Sigma.cols());
-    sgg.subj_sig_grad(0,0) = precision * svg.mer_sd_1()  * e.dot( (subj_array.transpose() * svg.b));
-    sgg.subj_sig_grad(0,0) += - 0.0001 * (svg.mer_sd_1()) + 1; // normal(0,100) prior and jacobian
+    sgg.subj_sig_grad = Eigen::VectorXd(svg.Sigma.rows());
+    sgg.subj_sig_grad(0) = precision * svg.mer_sd_1()  * e.dot( (subj_array.transpose() * svg.b));
+    sgg.subj_sig_grad(0) += - 0.0001 * (svg.mer_sd_1()) + 1; // normal(0,100) prior and jacobian
     sgg.b_slope_grad = Eigen::VectorXd::Zero(svg.b_slope.rows());
 
-    if(svg.Sigma.cols() == 2){
+    if(svg.Sigma.rows() == 3){
         sgg.b_slope_grad = bslope_del(svg);
-        sgg.subj_sig_grad(1,1) =  precision * svg.mer_sd_2() * e.dot((W.transpose() * (svg.b * svg.get_rho()   +  sqrt(svg.get_rho_sq_c()) * svg.b_slope) ));
-        sgg.subj_sig_grad(1,1) += - 0.0001 * (svg.mer_sd_2()) + 1;
-        sgg.subj_sig_grad(0,1) =  rho_del(svg);
-        sgg.subj_sig_grad(1,0) = sgg.subj_sig_grad(0,1);
+        sgg.subj_sig_grad(1) =  precision *  e.dot((W.transpose() * svg.adjust_b_slope() ));
+        sgg.subj_sig_grad(1) += - 0.0001 * (svg.mer_sd_2()) + 1;
+        sgg.subj_sig_grad(2) = rho_del(svg);
     }
 
     // prior components

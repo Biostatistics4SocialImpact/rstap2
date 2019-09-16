@@ -25,7 +25,7 @@ alpha <- 22
 beta <- 1.2
 beta_bar <- 1
 sigma <- .9
-sigma_b <- 2
+sigma_b <- 1.25
 dists_1 <- matrix(rexp(n = num_subj*num_bef,
                        rate = 1),
                   nrow = num_subj,
@@ -51,7 +51,7 @@ X_bar <- X %>% group_by(id) %>% summarise(MN_Exposure = mean(Exposure)) %>%
     mutate(subj_int = rnorm(n = num_subj,
                             mean = 0,
                             sd = sigma_b),
-           subj_slope = rnorm(n=num_subj,0,1.5))
+           subj_slope = rnorm(n=num_subj,0,0.5))
 
 X_diff <- X %>% left_join(X_bar,by='id') %>% mutate(X_diff = Exposure - MN_Exposure)
 
@@ -85,8 +85,8 @@ W <- subj_mat2
 
 
 ```{r}
-iter_max <- 10
-warmup <- 10
+iter_max <- 50
+warmup <- 50
 sink("~/Desktop/NUTS_output.txt")
 fit <- stapdnd_glmer(y = y, Z = Z,W = W,
                      u_crs = as.matrix(u_crs),

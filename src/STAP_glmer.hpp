@@ -24,7 +24,7 @@ class SG_glmer: public SG
     public:
         Eigen::VectorXd b_grad;
         Eigen::VectorXd b_slope_grad;
-        Eigen::MatrixXd subj_sig_grad; 
+        Eigen::VectorXd subj_sig_grad; 
         void print_grads(){
 
             Rcpp::Rcout << "Printing Gradients: " << std::endl;
@@ -49,26 +49,16 @@ class SV_glmer: public SV
         Eigen::VectorXd b_slope;
         Eigen::VectorXd b_m;
         Eigen::VectorXd bs_m;
-        Eigen::MatrixXd Sigma;
-        Eigen::MatrixXd S_m;
+        Eigen::VectorXd Sigma;
+        Eigen::VectorXd S_m;
         SV_glmer(Eigen::ArrayXi& stap_par_code_input,
                 std::mt19937& rng, const bool input_diagnostics) :
             SV(stap_par_code_input,rng,input_diagnostics)
     {
         b = GaussianNoise(spc(4),rng); 
         b_slope = spc(5) == 2 ? GaussianNoise(spc(4),rng) : Eigen::VectorXd::Zero(spc(4));
-        Sigma = initialize_matrix(spc(5),spc(5),rng); 
-        if(Sigma.cols()>1)
-          Sigma(1,0) = Sigma(0,1);
+        Sigma =  spc(5) == 2 ? GaussianNoise(3,rng) : GaussianNoise(1,rng);
 
-
-        /*
-        if(diagnostics){
-            Rcpp::Rcout << "Subj_sigma " << Sigma << std::endl;
-            Rcpp::Rcout << "b head " << b.head(5) << std::endl;
-            Rcpp::Rcout << "b_slope head " << b_slope.head(5) << std::endl;
-        }
-        */
     }
         void print_pars(){
 
@@ -106,9 +96,7 @@ class SV_glmer: public SV
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
-            S_m = GaussianNoise_mat(Sigma.cols(),Sigma.cols(),rng);
-            if(S_m.cols()==2)
-              S_m(1,0) = S_m(0,1);
+            S_m = spc(5) == 2 ? GaussianNoise(3,rng) : GaussianNoise(1,rng);
             am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
@@ -120,69 +108,59 @@ class SV_glmer: public SV
         }
 
         double get_rho(){
-           if(Sigma.cols() == 1)
-             return(0);
+           if(spc(5) == 1)
+             return(1.0);
            else
-            return(sigmoid_transform(Sigma(0,1),-1,1));
+            return(sigmoid_transform(Sigma(2),-1,1));
         }
 
         double get_rho_derivative(){
-          if(Sigma.cols()==1)
+          if(spc(5)==1)
             return(0);
           else
-            return(sigmoid_transform_derivative(Sigma(0,1),-1,1));
+            return(sigmoid_transform_derivative(Sigma(2),-1,1));
         }
 
         double get_rho_sq_c(){
-          if(Sigma.cols() == 1)
+          if(Sigma.rows() == 1)
             return(0);
           else
-            return(1 - pow(sigmoid_transform(Sigma(0,1),-1,1),2) );
+            return(1 - pow(sigmoid_transform(Sigma(2),-1,1),2) );
         }
 
         Eigen::VectorXd adjust_b(){
-            return(b * exp(Sigma(0,0)) );
+            return(b * exp(Sigma(0)) );
         }
 
         Eigen::VectorXd adjust_b_slope(){
-            return( exp(Sigma(1,1))*(b * get_rho() + b_slope * sqrt(get_rho_sq_c()) ));
-        }
-
-
-        Eigen::MatrixXd mer_precision_transformed(){
-            if(Sigma.cols() == 1)
-                return (pow(exp(Sigma.array()),-2));
-            else{
-                Eigen::MatrixXd out(Sigma.rows(),Sigma.cols());
-                out = mer_var_transformed();
-                return (out.inverse());
-            }
+            return( exp(Sigma(1)) * (b * get_rho() + b_slope * sqrt(get_rho_sq_c()) ));
         }
 
         double mer_sd_1(){
-            return(exp(Sigma(0,0)));
+            return(exp(Sigma(0)));
         }
 
         double mer_sd_2(){
-            return(exp(Sigma(1,1)));
+            return(exp(Sigma(1)));
         }
 
         Eigen::MatrixXd mer_var_transformed(){
-            if(Sigma.cols() == 1)
-                return(pow(exp(Sigma.array()),2));
+            if(Sigma.rows() == 1)
+                return(Eigen::MatrixXd::Ones(1,1)*Sigma(0));
             else{
-                Eigen::MatrixXd out(Sigma.rows(),Sigma.cols());
-                out(0,0) = pow(exp(Sigma(0,0)),2);
-                out(1,1) = pow(exp(Sigma(1,1)),2);
-                out(1,0) = sigmoid_transform(Sigma(0,1),-1,1) * exp(Sigma(0,0)) * exp(Sigma(1,1));
-                out(0,1) = sigmoid_transform(Sigma(0,1),-1,1) * exp(Sigma(0,0)) * exp(Sigma(1,1));
+                int d = 2;
+                Eigen::MatrixXd out(d,d);
+                out(0,0) = pow(exp(Sigma(0)),2);
+                out(1,1) = pow(exp(Sigma(1)),2);
+                out(1,0) = sigmoid_transform(Sigma(2),-1,1) * exp(Sigma(0)) * exp(Sigma(1));
+                out(0,1) = sigmoid_transform(Sigma(2),-1,1) * exp(Sigma(0)) * exp(Sigma(1));
                 return(out);
             }
         }
 
         double  mer_L_11(){
           double out; 
-          out = exp(Sigma(1,1)) * pow(get_rho_sq_c(),.5);
+          out = exp(Sigma(1)) * pow(get_rho_sq_c(),.5);
           return(out);
         }
 
@@ -280,11 +258,7 @@ class SV_glmer: public SV
             out += (sm * sm)   + (am * am)  ;
             out += b_m.dot(b_m);
             out += bs_m.dot(bs_m);
-            out += pow(S_m(0,0),2);
-            if(S_m.cols()>1){
-                out += pow(S_m(0,1),2);
-                out += pow(S_m(1,1),2);
-            }
+            out += S_m.dot(S_m);
             out = out / 2.0;
             return(out);
         }
@@ -295,19 +269,15 @@ bool get_UTI_one(SV_glmer& svgl, SV_glmer& svgr){
 
 
     double out;
-    out = (svgr.delta - svgl.delta).dot(svgl.dm);
+    out = pow((svgr.alpha - svgl.alpha) * svgl.am,2);
+    out += pow((svgr.sigma - svgl.sigma) * (svgl.sm),2);
+    out += (svgr.delta - svgl.delta).dot(svgl.dm);
     out += (svgr.beta - svgl.beta).dot(svgl.bm);
     out += (svgr.beta_bar - svgl.beta_bar).dot(svgl.bbm);
     out += (svgr.theta - svgl.theta).dot(svgl.tm);
-    out += pow((svgr.sigma - svgl.sigma) * (svgl.sm),2);
-    out += pow((svgr.alpha - svgl.alpha) * svgl.am,2);
-    out += pow((svgr.Sigma(0,0) - svgl.Sigma(0,0)) * svgl.S_m(0,0) ,2);
     out += (svgr.b - svgl.b).dot(svgl.b_m);
     out += (svgr.b_slope - svgl.b_slope).dot(svgl.bs_m);
-    if(svgr.Sigma.cols() == 2){
-        out += pow((svgr.Sigma(0,1) - svgl.Sigma(0,1)) * svgr.S_m(0,1) ,2);
-        out += pow((svgr.Sigma(1,1) - svgl.Sigma(1,1)) * svgr.S_m(1,1) ,2);
-    }
+    out += (svgr.Sigma - svgl.Sigma).dot(svgl.S_m);
     out = out / 2.0;
 
     return((out >= 0));
@@ -316,21 +286,16 @@ bool get_UTI_one(SV_glmer& svgl, SV_glmer& svgr){
 
 bool get_UTI_two(SV_glmer& svgl,SV_glmer& svgr){
 
-    double out;
-    out = (svgr.delta - svgl.delta).dot(svgr.dm);
+    double out = 0;
+    out += pow((svgr.alpha - svgl.alpha) * svgr.am,2);
+    out += pow((svgr.sigma - svgl.sigma) * (svgr.sm),2);
+    out += (svgr.delta - svgl.delta).dot(svgr.dm);
     out += (svgr.beta - svgl.beta).dot(svgr.bm);
     out += (svgr.beta_bar - svgl.beta_bar).dot(svgr.bbm);
     out +=  (svgr.theta - svgl.theta).dot(svgr.tm);
-    out += pow((svgr.sigma - svgl.sigma) * (svgr.sm),2);
-    out += pow((svgr.alpha - svgl.alpha) * svgr.am,2);
-    out += pow((svgr.Sigma(0,0) - svgl.Sigma(0,0)) * svgr.S_m(0,0) ,2);
     out += (svgr.b - svgl.b).dot(svgr.b_m);
     out += (svgr.b_slope - svgl.b_slope).dot(svgr.bs_m);
-    if(svgr.b.cols()==2){
-        out += pow((svgr.Sigma(0,1) - svgl.Sigma(0,1)) * svgr.S_m(0,1) ,2);
-        out += pow((svgr.Sigma(1,1) - svgl.Sigma(1,1)) * svgr.S_m(1,1) ,2);
-    }
-
+    out += (svgr.Sigma - svgl.Sigma).dot(svgr.S_m);
     out = out / 2.0;
 
     return((out >= 0));
