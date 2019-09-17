@@ -303,17 +303,17 @@ bool get_UTI_two(SV_glmer& svgl,SV_glmer& svgr){
 
 class STAP_glmer: public STAP
 {
-    private: Eigen::MatrixXd W;
+    private: const Eigen::MappedSparseMatrix<double> W;
     public:
         SG_glmer sgg;
-        STAP_glmer(Eigen::ArrayXXd& input_dists,
-                   Eigen::ArrayXXi& input_ucrs,
-                   Eigen::MatrixXd& input_subj_array,
-                   Eigen::MatrixXd& input_subj_n,
-                   Eigen::MatrixXd& input_Z,
-                   Eigen::MatrixXd& input_W,
-                   Eigen::VectorXd& input_y,
-                   const bool& input_diagnostics) : 
+        STAP_glmer(Eigen::ArrayXXd &input_dists,
+                   Eigen::ArrayXXi &input_ucrs,
+                   Eigen::MappedSparseMatrix<double> &input_subj_array,
+                   Eigen::MatrixXd &input_subj_n,
+                   Eigen::MatrixXd &input_Z,
+                   const Eigen::MappedSparseMatrix<double> &input_W,
+                   Eigen::VectorXd &input_y,
+                   const bool &input_diagnostics) : 
 
         STAP(input_dists,input_ucrs,input_subj_array,input_subj_n, input_Z, input_y, input_diagnostics), W(input_W){}
 

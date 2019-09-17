@@ -376,7 +376,7 @@ class STAP
         Eigen::ArrayXXd dists;
         Eigen::ArrayXXi u_crs;
         bool diagnostics;
-        Eigen::MatrixXd subj_array;
+        Eigen::SparseMatrix<double> subj_array ;
         Eigen::MatrixXd subj_n;
         Eigen::MatrixXd Z;
         Eigen::VectorXd y;
@@ -389,8 +389,8 @@ class STAP
         SG sg;
         STAP(Eigen::ArrayXXd& input_dists,
              Eigen::ArrayXXi& input_ucrs,
-             Eigen::MatrixXd& input_subj_array,
-             Eigen::MatrixXd& input_subj_n,
+             Eigen::MappedSparseMatrix<double> &input_subj_array,
+             Eigen::MatrixXd &input_subj_n,
              Eigen::MatrixXd& input_Z,
              Eigen::VectorXd& input_y,
              const bool& input_diagnostics);

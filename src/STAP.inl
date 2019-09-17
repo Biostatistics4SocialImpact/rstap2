@@ -1,9 +1,9 @@
-STAP::STAP(Eigen::ArrayXXd& input_dists,
-           Eigen::ArrayXXi& input_ucrs,
-           Eigen::MatrixXd& input_subj_array,
-           Eigen::MatrixXd& input_subj_n,
-           Eigen::MatrixXd& input_Z,
-           Eigen::VectorXd& input_y,
+STAP::STAP(Eigen::ArrayXXd &input_dists,
+           Eigen::ArrayXXi &input_ucrs,
+           Eigen::MappedSparseMatrix<double> &input_subj_array,
+           Eigen::MatrixXd &input_subj_n,
+           Eigen::MatrixXd &input_Z,
+           Eigen::VectorXd &input_y,
            const bool& input_diagnostics){
 
     dists = input_dists;
