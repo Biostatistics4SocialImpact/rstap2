@@ -56,8 +56,8 @@ class SV_glmer: public SV
             SV(stap_par_code_input,rng,input_diagnostics)
     {
         b = GaussianNoise(spc(4),rng); 
-        b_slope = spc(5) == 2 ? GaussianNoise(spc(4),rng) : Eigen::VectorXd::Zero(spc(4));
-        Sigma =  spc(5) == 2 ? GaussianNoise(3,rng) : GaussianNoise(1,rng);
+        b_slope = spc(6) == 2 ? GaussianNoise(spc(4),rng) : Eigen::VectorXd::Zero(spc(4));
+        Sigma =  spc(6) == 2 ? GaussianNoise(3,rng) : GaussianNoise(1,rng);
 
     }
         void print_pars(){
@@ -96,26 +96,26 @@ class SV_glmer: public SV
         void initialize_momenta(std::mt19937& rng){
 
             sm = GaussianNoise_scalar(rng);
-            S_m = spc(5) == 2 ? GaussianNoise(3,rng) : GaussianNoise(1,rng);
+            S_m = spc(6) == 2 ? GaussianNoise(3,rng) : GaussianNoise(1,rng);
             am = spc(0) == 0 ? 0.0 :  GaussianNoise_scalar(rng);
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
             dm = spc(1) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(delta.size(),rng); 
             b_m = GaussianNoise(spc(4),rng);
-            bs_m = spc(5) == 2 ? GaussianNoise(spc(4),rng) : Eigen::VectorXd::Zero(spc(4));
+            bs_m = spc(6) == 2 ? GaussianNoise(spc(4),rng) : Eigen::VectorXd::Zero(spc(4));
             tm = GaussianNoise(theta.size(),rng);
 
         }
 
         double get_rho(){
-           if(spc(5) == 1)
+           if(spc(6) == 1)
              return(1.0);
            else
             return(sigmoid_transform(Sigma(2),-1,1));
         }
 
         double get_rho_derivative(){
-          if(spc(5)==1)
+          if(spc(6)==1)
             return(0);
           else
             return(sigmoid_transform_derivative(Sigma(2),-1,1));
@@ -308,6 +308,8 @@ class STAP_glmer: public STAP
         SG_glmer sgg;
         STAP_glmer(Eigen::ArrayXXd &input_dists,
                    Eigen::ArrayXXi &input_ucrs,
+		   Eigen::ArrayXXd &input_times,
+		   Eigen::ArrayXXi &input_utcrs,
                    Eigen::MappedSparseMatrix<double> &input_subj_array,
                    Eigen::MatrixXd &input_subj_n,
                    Eigen::MatrixXd &input_Z,
@@ -315,7 +317,9 @@ class STAP_glmer: public STAP
                    Eigen::VectorXd &input_y,
                    const bool &input_diagnostics) : 
 
-        STAP(input_dists,input_ucrs,input_subj_array,input_subj_n, input_Z, input_y, input_diagnostics), W(input_W){}
+        STAP(input_dists,input_ucrs, input_times, input_utcrs,
+	     input_subj_array,input_subj_n, input_Z, input_y,
+	     input_diagnostics), W(input_W){}
 
         void calculate_glmer_eta(SV_glmer& svg);
 
@@ -341,7 +345,7 @@ class STAP_glmer: public STAP
 double adjust_alpha(STAP_glmer &stap_object, SV_glmer &sv,double &y_bar, double &y_sd, Eigen::VectorXd &z_bar){
   
   double out = y_bar;
-  stap_object.calculate_X_diff(sv.theta(0));
+  stap_object.calculate_X_diff(sv.theta(0),sv.theta_t(0));
 
   out += y_sd * (sv.alpha - stap_object.X_global_mean.dot(sv.beta_bar) - 
       z_bar.dot(sv.delta));

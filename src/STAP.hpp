@@ -12,6 +12,7 @@ class SG
         Eigen::VectorXd beta_grad;
         Eigen::VectorXd beta_bar_grad;
         Eigen::VectorXd theta_grad;
+        Eigen::VectorXd theta_t_grad;
         void print_grads(){
 
             Rcpp::Rcout << "Printing Gradients: " << std::endl;
@@ -21,6 +22,7 @@ class SG
             Rcpp::Rcout << "beta_grad: "  << beta_grad << std::endl;
             Rcpp::Rcout << "beta_bar_grad: "  << beta_bar_grad << std::endl;
             Rcpp::Rcout << "theta_grad: " << theta_grad << std::endl;
+            Rcpp::Rcout << "theta_t_grad: " << theta_t_grad << std::endl;
             Rcpp::Rcout << "sigma_grad: " << sigma_grad << std::endl;
             Rcpp::Rcout << "-------------------- \n " << std::endl;
 
@@ -72,11 +74,13 @@ class SV
         Eigen::VectorXd beta;
         Eigen::VectorXd beta_bar;
         Eigen::VectorXd theta;
+        Eigen::VectorXd theta_t;
         double sigma;
         Eigen::VectorXd dm;
         Eigen::VectorXd bm;
         Eigen::VectorXd bbm;
         Eigen::VectorXd tm;
+        Eigen::VectorXd ttm;
         Eigen::ArrayXi spc;
         Var_Agg<Eigen::ArrayXd> vd;
         Var_Agg<Eigen::ArrayXd> vb;
@@ -98,6 +102,7 @@ class SV
             beta = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(spc(2),rng); 
             beta_bar = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(spc(3),rng);
             theta = initialize_vec(stap_par_code_input(2),rng);
+            theta_t = spc(5) == 0 ? Eigen::VectorXd::Zero(1) : initialize_vec(spc(5),rng);
             if(diagnostics){
 //                Rcpp::Rcout << " Initialized Parameters" << std::endl;
 //                print_pars();
@@ -118,6 +123,7 @@ class SV
             bm = spc(2) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta.size(),rng);
             bbm = spc(3) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(beta_bar.size(),rng);
             tm = GaussianNoise(theta.size(),rng);
+            ttm = spc(5) == 0 ? Eigen::VectorXd::Zero(1) : GaussianNoise(theta_t.size(),rng);
         }
 
         void print_pars(){
@@ -126,7 +132,8 @@ class SV
             Rcpp::Rcout << "-------------------------------------------------------------------------- " << std::endl;
             Rcpp::Rcout << "alpha: " << alpha <<  " | " << "delta: " << delta << " | beta: " << beta << 
               " | beta_bar: " << beta_bar << std::endl;
-            Rcpp::Rcout << "theta: " << theta << " |  theta_ " << 10/ (1 + exp(-theta(0))) <<
+            Rcpp::Rcout << "theta: " << theta << " |  theta_ " << (10.0/ (1 + exp(-theta(0)))) <<
+						 "theta_t: " << theta_t << " |  theta_t_ " << exp(theta_t(0)) <<
                 " | sigma: " << sigma << " |  sigma_ " << exp(sigma) << std::endl;
             Rcpp::Rcout << "-------------------------------------------------------------------------- " << std::endl;
 
@@ -141,6 +148,7 @@ class SV
             Rcpp::Rcout << "bm: " << bm << std::endl;
             Rcpp::Rcout << "bbm: " << bbm << std::endl;
             Rcpp::Rcout << "tm: " << tm << std::endl;
+            Rcpp::Rcout << "ttm: " << ttm << std::endl;
             Rcpp::Rcout << "sm: " << sm << std::endl;
             Rcpp::Rcout << "------------------------ " << "\n" << std::endl;
 
@@ -158,6 +166,7 @@ class SV
             bm = sv.bm + epsilon * sg.beta_grad / 2.0 ;
             bbm = sv.bbm + epsilon * sg.beta_bar_grad / 2.0;
             tm = sv.tm + epsilon * sg.theta_grad / 2.0;
+            ttm = sv.ttm + epsilon * sg.theta_t_grad / 2.0;
             sm = sv.sm + epsilon * sg.sigma_grad / 2.0;
             if(diagnostics){
                 Rcpp::Rcout << "Printing half momenta" << std::endl;
@@ -175,6 +184,7 @@ class SV
             beta = sv.beta.array() + epsilon * sv.vb.var * bm.array();
             beta_bar = sv.beta_bar.array() + epsilon * sv.vbb.var * bbm.array(); 
             theta = sv.theta.array() + epsilon * sv.vt.var * tm.array();
+            theta_t = sv.theta_t.array() + epsilon * ttm.array();
             sigma = sv.sigma + epsilon * sv.vs.var * sm;
             if(diagnostics){
                 Rcpp::Rcout << "updated positions: " << std::endl;
@@ -192,6 +202,7 @@ class SV
             bm = bm + epsilon * sg.beta_grad / 2.0;
             bbm = bbm + epsilon * sg.beta_bar_grad / 2.0;
             tm = tm + epsilon * sg.theta_grad / 2.0;
+            ttm = ttm + epsilon * sg.theta_t_grad / 2.0;
             sm = sm + epsilon * sg.sigma_grad / 2.0;
             if(diagnostics){
                 Rcpp::Rcout << "final momenta" << std::endl;
@@ -205,12 +216,14 @@ class SV
             bm = other.bm;
             bbm = other.bbm;
             tm = other.tm;
+			ttm = other.ttm;
             sm = other.sm;
             alpha = other.alpha;
             delta = other.delta;
             beta = other.beta;
             beta_bar = other.beta_bar;
             theta = other.theta;
+            theta_t = other.theta_t;
             sigma = other.sigma;
         }
 
@@ -325,12 +338,17 @@ class SV
             return( 10 / (1 + exp(-theta.array())) );
         }
 
+        Eigen::VectorXd theta_t_transformed(){
+            return(exp(theta_t.array()));
+        }
+
         double kinetic_energy(){
             double out = 0;
             out = dm.transpose() * (vd.var).matrix().asDiagonal() * dm;
             out += bm.transpose() * (vb.var).matrix().asDiagonal() * bm;
             out += bbm.transpose() * (vbb.var).matrix().asDiagonal() * bbm;
             out += tm.transpose() * (vt.var).matrix().asDiagonal() * tm;
+            out += ttm.dot(ttm);
             out += (sm * sm) * vs.var   + (am * am) * va.var;
             out = out / 2.0;
             return(out);
@@ -345,6 +363,7 @@ bool get_UTI_one(SV& svl,SV& svr){
     out += (svr.beta - svl.beta).dot(svl.bm);
     out += (svr.beta_bar - svl.beta_bar).dot(svl.bbm);
     out += (svr.theta - svl.theta).dot(svl.tm);
+    out += (svr.theta_t - svl.theta_t).dot(svl.ttm);
     out += (svr.sigma - svl.sigma) * (svl.sm);
     out += (svr.alpha - svl.alpha) * svl.am;
     out = out / 2.0;
@@ -359,6 +378,7 @@ bool get_UTI_two(SV& svl,SV& svr){
     out += (svr.beta - svl.beta).dot(svr.bm);
     out += (svr.beta_bar - svl.beta_bar).dot(svr.bbm);
     out +=  (svr.theta - svl.theta).dot(svr.tm);
+    out += (svr.theta_t - svl.theta_t).dot(svr.ttm);
     out += (svr.sigma - svl.sigma) * (svr.sm);
     out += (svr.alpha - svl.alpha) * svr.am;
     out = out / 2.0;
@@ -373,8 +393,11 @@ class STAP
         Eigen::VectorXd eta;
         Eigen::MatrixXd X;
         Eigen::MatrixXd X_prime;
+		Eigen::MatrixXd X_tprime;
         Eigen::ArrayXXd dists;
+        Eigen::ArrayXXd times;
         Eigen::ArrayXXi u_crs;
+        Eigen::ArrayXXi u_tcrs;
         bool diagnostics;
         Eigen::SparseMatrix<double> subj_array ;
         Eigen::MatrixXd subj_n;
@@ -385,10 +408,15 @@ class STAP
         Eigen::MatrixXd X_diff;
         Eigen::MatrixXd X_mean_prime;
         Eigen::VectorXd X_mean_prime_global_mean;
+		Eigen::MatrixXd X_mean_tprime;
+		Eigen::VectorXd X_mean_tprime_global_mean;
         Eigen::MatrixXd X_prime_diff;
+		Eigen::MatrixXd X_tprime_diff;
         SG sg;
         STAP(Eigen::ArrayXXd& input_dists,
              Eigen::ArrayXXi& input_ucrs,
+	     Eigen::ArrayXXd& input_times,
+	     Eigen::ArrayXXi& input_utcrs,
              Eigen::MappedSparseMatrix<double> &input_subj_array,
              Eigen::MatrixXd &input_subj_n,
              Eigen::MatrixXd& input_Z,
@@ -403,15 +431,29 @@ class STAP
 
         void calculate_X(double& theta);
 
+        void calculate_X(double& theta_s, double &theta_t);
+
+		/*
         void calculate_X_diff(double& theta);
+		*/
+
+        void calculate_X_diff(double& theta, double &theta_t);
 
         void calculate_X_mean();
 
-        void calculate_X_prime(double& theta, double& cur_theta);
+		/*
+        void calculate_X_prime(double &theta_tilde, double& cur_theta);
+		*/
+	
+		void calculate_X_prime(double &theta_tilde, double &cur_theta, double &theta_t);
 
         void calculate_X_mean_prime();
 
+		/*
         void calculate_X_prime_diff(double& theta,double& cur_theta);
+		*/
+
+        void calculate_X_prime_diff(double& theta,double& cur_theta, double &theta_time);
 
         void calculate_eta(SV& sv);
 
@@ -454,7 +496,7 @@ class STAP
 
 double adjust_alpha(STAP &stap_object, SV &sv, double &y_bar, double &y_sd){
   
-  stap_object.calculate_X_diff(sv.theta(0));
+  stap_object.calculate_X_diff(sv.theta(0),sv.theta_t(0));
   
   return(sv.alpha - stap_object.X_global_mean.dot(sv.beta_bar) * y_sd + y_bar);
 }

@@ -1,5 +1,7 @@
 STAP::STAP(Eigen::ArrayXXd &input_dists,
            Eigen::ArrayXXi &input_ucrs,
+           Eigen::ArrayXXd &input_times,
+	   Eigen::ArrayXXi &input_utcrs,
            Eigen::MappedSparseMatrix<double> &input_subj_array,
            Eigen::MatrixXd &input_subj_n,
            Eigen::MatrixXd &input_Z,
@@ -8,12 +10,15 @@ STAP::STAP(Eigen::ArrayXXd &input_dists,
 
     dists = input_dists;
     u_crs = input_ucrs;
+    times = input_times;
+    u_tcrs= input_utcrs;
     subj_array = input_subj_array;
     subj_n = input_subj_n;
     Z = input_Z;
     y = input_y;
     X = Eigen::MatrixXd::Zero(y.size(),dists.rows()); 
     X_prime = Eigen::MatrixXd::Zero(y.size(),dists.rows());
+	X_tprime = Eigen::MatrixXd::Zero(y.size(),dists.rows());
     diagnostics = input_diagnostics;
 
 }
@@ -21,13 +26,13 @@ STAP::STAP(Eigen::ArrayXXd &input_dists,
 double STAP::calculate_ll(SV& sv){
 
     double out = 0;
-    this->calculate_X_diff(sv.theta(0));
+    calculate_X_diff(sv.theta(0),sv.theta_t(0));
     this->calculate_eta(sv);
 
-    out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
+    out +=  -y.size() * sv.sigma ; 
 
     // likelihood kernel
-    out += - .5 * sv.precision_transformed() * (pow((y - eta).array(),2)).sum();
+    out += - .5 * sv.precision_transformed() * (y-eta).dot(y-eta);
 
     return(out);
 
@@ -47,20 +52,14 @@ double STAP::calculate_total_energy(SV& sv){
     }
     
     double out = 0;
-    this->calculate_X_diff(sv.theta(0));
-    this->calculate_eta(sv);
-
-    out -= y.size() / 2.0 * log(M_PI * 2 * sv.sigma_sq_transformed() ); 
-
-    // likelihood kernel
-    out += - .5 * sv.precision_transformed() * (pow((y - eta).array(),2)).sum();
+	out += calculate_ll(sv);
 
     if(diagnostics)
         Rcpp::Rcout << "likelihood" << out << std::endl;
     
     // alpha ~N(25,5)  prior
-    out += R::dnorm(sv.alpha,0,5,TRUE);
-
+    out += R::dnorm(sv.alpha,25,5,TRUE);
+  
     // delta ~ N(0,3)
     if(sv.spc(1) != 0)
         out += - sv.delta.size() / 2.0 * log(M_PI * 2 * 9) - .5 * 1.0 / 9.0  * sv.delta.dot(sv.delta); 
@@ -76,10 +75,12 @@ double STAP::calculate_total_energy(SV& sv){
     if(diagnostics)
         Rcpp::Rcout << "bb prior " << out << std::endl;
 
-    // log(theta) ~ N(1,1) prior 
+    // log(theta) ~ N(0,1) prior 
     out +=  R::dlnorm(sv.theta_transformed()(0),1,1,TRUE);
     if(diagnostics)
         Rcpp::Rcout << "theta prior " << out << std::endl;
+
+    out += R::dlnorm(sv.theta_t_transformed()(0),0,1,TRUE) + sv.theta_t(0) ;
 
     // sigma ~ C(0,5)
     out +=  R::dcauchy(sv.sigma_transformed(),0,5,TRUE);
@@ -91,7 +92,6 @@ double STAP::calculate_total_energy(SV& sv){
 
     if(diagnostics)
         Rcpp::Rcout << "jacobian I" << out << std::endl;
-    
     
     // sigma jacobian
     out += sv.sigma;
@@ -124,7 +124,7 @@ double STAP::sample_u(SV& sv, std::mt19937& rng){
     double log_z = log(runif(rng));
     return(energy + log_z);
 }
-
+/*
 void STAP::calculate_X(double& theta){
     
     int start_col;
@@ -141,12 +141,48 @@ void STAP::calculate_X(double& theta){
         }
     }
 }
+*/
 
+void STAP::calculate_X(double &theta_s, double &theta_t){
+
+    int start_col;
+    int range_len;
+    int col_lim = X.cols();
+    for(int bef_ix = 0; bef_ix < col_lim; bef_ix ++){
+        for(int subj_ix = 0; subj_ix < u_crs.rows(); subj_ix ++){
+            start_col = u_crs(subj_ix,bef_ix);
+            range_len = u_crs(subj_ix,bef_ix+1) - start_col + 1;
+            if(range_len==0)
+                X(subj_ix,bef_ix) = 0;
+            else
+                X(subj_ix,bef_ix) = ( exp(- dists.block(bef_ix,start_col,1,range_len) / theta_s  ) * 
+                    (1 - exp( -times.block(bef_ix,start_col,1,range_len) / theta_t )) ).sum();
+        }
+    }
+
+}
+/*
 void STAP::calculate_X_diff(double& theta){
     
   // calculate exposure matrix
     double transformed_theta = 10.0 / (1 + exp(-theta));
     this->calculate_X(transformed_theta);
+    this->calculate_X_mean();
+    X_diff = X - X_mean;
+
+    // calculate exposure column means
+    X_global_mean = (X_mean).colwise().mean();
+
+    // center average exposure matrix by column
+    X_mean = (X_mean).rowwise() - X_global_mean.transpose();
+}*/
+
+void STAP::calculate_X_diff(double& theta,double &theta_t){
+    
+  // calculate exposure matrix
+    double transformed_theta = 10.0 / (1 + exp(-theta));
+    double transformed_theta_t = exp(theta_t);
+    this->calculate_X(transformed_theta,transformed_theta_t);
     this->calculate_X_mean();
     X_diff = X - X_mean;
 
@@ -162,6 +198,7 @@ void STAP::calculate_X_mean(){
     X_mean =  (subj_array.transpose() * ((subj_array * X).array() * subj_n.array() ).matrix() );
 }
 
+/*
 void STAP::calculate_X_prime(double& theta_tilde,double& theta){ 
 
     int start_col;
@@ -177,8 +214,40 @@ void STAP::calculate_X_prime(double& theta_tilde,double& theta){
             }
             else{
               X(subj_ix,bef_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  )).sum();
-              X_prime(subj_ix,bef_ix) = (( 10.0 / (1+exp(-theta))) * (1 - 1.0 /(1.0 + exp(-theta)) ) ) * ( pow(theta_tilde,- 2  )) *  (dists.block(bef_ix,start_col,1,range_len)    *  exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  ) ).sum();
+              X_prime(subj_ix,bef_ix) = (( 10.0 / (1+exp(-theta))) * (1 - 1.0 /(1.0 + exp(-theta)) ) ) *
+                                        ( pow(theta_tilde,- 2  )) *  (dists.block(bef_ix,start_col,1,range_len) * 
+                                            exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  ) ).sum();
             }
+        }
+    }
+
+}*/
+
+void STAP::calculate_X_prime(double& theta_tilde,double& theta,double &theta_t){ 
+
+    int start_col;
+    int range_len;
+    int col_lim = X.cols();
+    for(int bef_ix = 0; bef_ix < col_lim ; bef_ix ++){
+        for(int subj_ix = 0; subj_ix < u_crs.rows(); subj_ix ++){
+            start_col = u_crs(subj_ix,bef_ix);
+            range_len = u_crs(subj_ix,bef_ix+1) - start_col + 1;
+            if(range_len==0){
+              X(subj_ix,bef_ix) = 0;
+              X_prime(subj_ix,bef_ix) = 0;
+			  X_tprime(subj_ix,bef_ix) = 0;
+            }
+            else{
+              X(subj_ix,bef_ix) = (exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  )  *
+                                  (1- exp(-times.block(bef_ix,start_col,1,range_len) / theta_t ) )   ).sum();
+              X_prime(subj_ix,bef_ix) =  sigmoid_transform_derivative(theta,0.0,10.0) * pow(theta_tilde,- 2  ) *
+                                            (dists.block(bef_ix,start_col,1,range_len) * 
+                                            exp(- dists.block(bef_ix,start_col,1,range_len) / theta_tilde  ) *
+											(1- exp( - times.block(bef_ix,start_col,1,range_len) / theta_t ) ) ).sum();
+			  X_tprime(subj_ix,bef_ix) = - (times.block(bef_ix,start_col,1,range_len) * 
+										   exp(-times.block(bef_ix,start_col,1,range_len) / theta_t - 
+											   dists.block(bef_ix,start_col,1,range_len) / theta_tilde) ).sum() / theta_t;
+			}
         }
     }
 
@@ -188,9 +257,11 @@ void STAP::calculate_X_mean_prime(){
 
     X_mean =  (subj_array.transpose() * ( (subj_array * X).array() * subj_n.array() ).matrix() );
     X_mean_prime = (subj_array.transpose() * ((subj_array * X_prime).array() * subj_n.array()  ).matrix() );
+	X_mean_tprime = (subj_array.transpose() * ((subj_array * X_tprime).array() * subj_n.array()  ).matrix() );
 
 }
 
+/*
 void STAP::calculate_X_prime_diff(double& theta_tilde, double& theta){
 
     // calculate exposure matrices, derivative exposure matrices
@@ -207,15 +278,34 @@ void STAP::calculate_X_prime_diff(double& theta_tilde, double& theta){
     // center exposure matrices (by column) 
     X_mean = (X_mean).rowwise() - X_global_mean.transpose();
     X_mean_prime = (X_mean_prime).rowwise() - X_mean_prime_global_mean.transpose();
+}*/
+
+void STAP::calculate_X_prime_diff(double& theta_tilde, double &theta, double &theta_t){
+
+    calculate_X_prime(theta_tilde,theta,theta_t);
+    calculate_X_mean_prime();
+
+    X_prime_diff = (X_prime - X_mean_prime);
+	X_tprime_diff = X_tprime - X_mean_tprime;
+    X_diff = (X- X_mean);
+
+    X_global_mean = X_mean.colwise().mean();
+    X_mean_prime_global_mean = (X_mean_prime).colwise().mean();
+	X_mean_tprime_global_mean = X_mean_tprime.colwise().mean();
+
+    X_mean = X_mean.rowwise() - X_global_mean.transpose();
+    X_mean_prime = X_mean_prime.rowwise() - X_mean_prime_global_mean.transpose();
+	X_mean_tprime = X_mean_tprime.rowwise() - X_mean_tprime_global_mean.transpose();
 }
+
 
 void STAP::calculate_gradient(SV& sv){
 
     double theta = sv.theta(0);
     double theta_transformed = 10 / (1 + exp(- theta));
-    double theta_exp = exp(theta);
+    double theta_t = exp(sv.theta_t(0));
     double precision = sv.precision_transformed();
-    this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
+    this->calculate_X_prime_diff(theta_transformed,theta,theta_t); // also calculates X
     this->calculate_eta(sv);
 
     sg.delta_grad =  precision * ((y - eta ).transpose() * Z).transpose();
@@ -230,14 +320,17 @@ void STAP::calculate_gradient(SV& sv){
 
     sg.theta_grad = precision * ((y - eta).transpose() * (X_prime_diff * sv.beta + X_mean_prime * sv.beta_bar) ).transpose();
 
+    sg.theta_t_grad = precision * ((y-eta).transpose() * (X_tprime_diff * sv.beta + X_mean_tprime * sv.beta_bar) ).transpose();
+
     // prior/jacobian components
     sg.alpha_grad += -1.0 / 25 * sv.alpha ; 
     sg.delta_grad = sg.delta_grad - 1.0 / 9.0 * sv.delta;
     sg.beta_grad = sg.beta_grad - 1.0 / 9.0 * sv.beta;
     sg.beta_bar_grad = sg.beta_bar_grad - 1.0 / 9.0 * sv.beta_bar;
     sg.theta_grad(0) += - pow(theta_transformed,-1) * sigmoid_transform_derivative(sv.theta(0),0,10);
-    sg.theta_grad(0) += - (log(theta_transformed) -1) * pow(theta_transformed,-1) * sigmoid_transform_derivative(sv.theta(0),0,10);
+    sg.theta_grad(0) += - (log(theta_transformed)-1) * pow(theta_transformed,-1) * sigmoid_transform_derivative(sv.theta(0),0,10);
     sg.theta_grad(0)  += log_sigmoid_transform_derivative(sv.theta(0),0,10); 
+    sg.theta_t_grad(0) += - (sv.theta_t(0));
     sg.sigma_grad += - (2 * sv.sigma_transformed()) / (25 + sv.sigma_sq_transformed()) + 1;
 
     if(sv.spc(1) == 0 )

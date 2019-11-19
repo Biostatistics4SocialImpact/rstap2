@@ -11,17 +11,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tidyverse)
-# library(rstap2)
+library(rstap2)
 ```
 
 
 ```{r}
-set.seed(24)
+set.seed(25)
 num_subj <- 100
-num_bef <- 10
+num_bef <- 20
 Z <- rep(rbinom(n = num_subj, size = 1, prob = .5),3)
 delta <- -.5
 theta_s <- .5
+theta_t <- 5
 alpha <- 22
 beta <- 1.2
 beta_bar <- 1
@@ -37,24 +38,45 @@ dists_2 <- matrix(rexp(n = num_subj*num_bef,
 dists_3 <- matrix(rexp(n= num_subj*num_bef,
                        rate = .5),
                   nrow = num_subj, ncol = num_bef)
+times_1 <- dists_1*3 + 5
+times_2 <- times_1 + 5
+times_3 <-  times_2 + 5
 dists <- rbind(dists_1,dists_2,dists_3)
 colnames(dists) <- stringr::str_c("BEF_",1:ncol(dists))
 dists <- as_tibble(dists)
 
+times <- rbind(times_1,times_2,times_3)
+
+colnames(times) <- stringr::str_c("BEF_",1:ncol(times))
+
 dists <- dists %>% mutate(id=expand.grid(subj=1:num_subj,time = 1:3)$subj,
-                         time = expand.grid(1:num_subj,time = 1:3)$time) %>%
+                         visit_no = expand.grid(1:num_subj,time = 1:3)$time) %>%
     gather(contains("BEF"),key = "BEF", value="Distance") %>% 
     filter(Distance<=5)
 
-X <- dists %>% group_by(id,time) %>% summarise(Exposure = sum(exp(-Distance/theta_s)))
+dists_times <- as_tibble(times) %>% 
+    mutate(id=expand.grid(subj = 1:num_subj,
+                          time = 1:3)$subj,
+                          visit_no = expand.grid(1:num_subj,
+                                                 time = 1:3)$time) %>% 
+    gather(contains("BEF"),key = "BEF",value = "Time") %>% 
+    right_join(dists)
+
+X <- dists_times %>% group_by(id,visit_no) %>% 
+    summarise(Exposure = sum( pexp(Distance,rate = 1 / theta_s,
+                                   lower.tail = F) *
+                               pexp(Time, rate = 1 / theta_t, 
+                                    lower.tail = T)) )
+
 X_bar <- X %>% group_by(id) %>% summarise(MN_Exposure = mean(Exposure))
 
 X_diff <- X %>% left_join(X_bar,by='id') %>% mutate(X_diff = Exposure - MN_Exposure)
 
 
-y <- alpha + Z * delta + beta*X_diff$X_diff + X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*3,
-                         mean = 0,
-                         sd = sigma)
+y <- alpha + Z * delta + beta*X_diff$X_diff + 
+    X_diff$MN_Exposure*beta_bar +  rnorm(n = num_subj*3,
+                                         mean = 0,
+                                         sd = sigma)
 
 Z <- matrix(Z,ncol=1)
 ```
@@ -62,28 +84,49 @@ Z <- matrix(Z,ncol=1)
 
 
 ```{r}
-dists_crs <- matrix(dists %>% arrange(id,time) %>% select(Distance) %>% pull(),nrow=1)
-u_crs <- as_tibble(xtabs(~id + time,data = dists, addNA = T)) %>% 
-    mutate(id = as.integer(id),time = as.integer(time)) %>% 
-    arrange(id,time) %>% 
-    mutate(start = replace(dplyr::lag(cumsum(n)),is.na(dplyr::lag(cumsum(n))),0)+1,
-           stop = cumsum(n)) %>% select(start,stop) %>% mutate(start = start - 1,
-                                                               stop = stop - 1)
+dists_crs <- matrix(dists %>% arrange(id,visit_no) %>% select(Distance) %>% pull(),nrow=1)
+u_crs <- as_tibble(xtabs(~id + visit_no,data = dists, addNA = T)) %>% 
+    mutate(id = as.integer(id),
+           visit_no = as.integer(visit_no)) %>% 
+    arrange(id,visit_no) %>% 
+    mutate(start = replace(dplyr::lag(cumsum(n)),
+                           is.na(dplyr::lag(cumsum(n))),0)+1,
+           stop = cumsum(n)) %>% 
+    select(start,stop) %>%
+    mutate(start = start - 1,
+           stop = stop - 1)
+
+times_crs <- matrix(dists_times %>% arrange(id,visit_no) %>% select(Time) %>% 
+                        pull(),nrow=1)
+times_crs <- as.matrix(times_crs)
+
 
 subj_mat1 <- as.matrix(Matrix::fac2sparse(as.factor(X_diff$id)))
 subj_n <- rep(1/3,num_subj)
+subj_mat1 <- as(subj_mat1,"sparseMatrix")
 ```
 
 
 ```{r}
 iter_max <- 1000
 warmup <- 500
-fit <- stap_diffndiff(y = y, Z = Z,
+
+fit <- stap_glm2(formula = y ~ sex,
+                 subject_data = data.frame(y = y,sex = Z),
+                 distance_data = list(distances = dists_crs,
+                                     u_crs = as.matrix(u_crs)),
+                 time_data = list(times = times_crs,
+                                  u_crs = as.matrix(u_crs)),
+                 adapt_delta = 0.65,iter_max = 1E3,warm_up = 5E2)
+
+fit <- stap_diffndiff_stfit(y = y, Z = Z,
                       u_crs = as.matrix(u_crs),
-                      subj_array = subj_mat1,
+                      subj_array_ = subj_mat1,
                       subj_n = matrix(subj_n,ncol=1),
-                      stap_par_code = c(length(y),1,1,1,1),
+                      stap_par_code = c(length(y),1,1,1,1,1),
                       distances = dists_crs,
+                      times = times_crs,
+                      u_tcrs = as.matrix(u_crs),
                       adapt_delta = .65,
                       warmup = warmup, 
                       iter_max = iter_max,
@@ -99,26 +142,36 @@ samples <- tibble(chain=1,
                   delta = fit$delta_samps[,1],
                   beta = fit$beta_samps[,1],
                   beta_bar = fit$beta_bar_samps[,1],
-                  theta = fit$theta_samps,
+                  theta_s = fit$theta_samps,
+                  theta_t = fit$theta_t_samps,
                   sigma = fit$sigma_samps,
                   acceptance = fit$acceptance) %>% mutate(ix = 1:n())
 
 samples %>% filter(acceptance==1,ix>warmup) %>% 
-    gather(delta,beta,beta_bar,theta,sigma,alpha,key="Parameters",value="Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
+    gather(delta,beta,beta_bar,theta_s,theta_t,
+           sigma,alpha,key="Parameters",value="Samples") %>% 
+    mutate(Truth = (Parameters=="beta")*beta +
+               (Parameters =="theta_s")*theta_s + 
+               (Parameters == "theta_t") *theta_t + 
+               (Parameters=="sigma")*sigma + 
            (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + 
            (Parameters=="alpha")*alpha) %>% 
     ggplot(aes(x=Samples)) + geom_histogram() + theme_bw() + 
     geom_vline(aes(xintercept=Truth),linetype=2) +
-    facet_wrap(~Parameters,scales="free") + ggtitle("Custom NUTS - Posterior Samples") + 
+    facet_wrap(~Parameters,scales="free") +
+    ggtitle("Custom NUTS - Posterior Samples") + 
     theme(strip.background = element_blank())
 ```
 
 
 ```{r}
 samples %>% filter(acceptance == 1, ix > warmup) %>% 
-    gather(delta,beta,beta_bar,theta,sigma,alpha,key = "Parameters", value = "Samples") %>% 
-    mutate(Truth = (Parameters=="beta")*beta + (Parameters =="theta")*theta_s + (Parameters=="sigma")*sigma + 
+    gather(delta,beta,beta_bar,theta_s,theta_t,sigma,alpha,
+           key = "Parameters", value = "Samples") %>% 
+    mutate(Truth = (Parameters=="beta")*beta +
+               (Parameters =="theta_s")*theta_s +
+               (Parameters == "theta_t")*theta_t + 
+               (Parameters=="sigma")*sigma + 
            (Parameters=="delta") *delta +  (Parameters=="beta_bar")*beta_bar + 
            (Parameters=="alpha")*alpha) %>%
     ggplot(aes(x=ix,y=Samples,color=Parameters)) + geom_path() + theme_bw() + 

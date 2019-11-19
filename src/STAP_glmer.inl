@@ -23,7 +23,6 @@ double STAP_glmer::rho_del(SV_glmer& svg){
   double out = 0.0;
   temp = W.transpose() * (svg.b    -  svg.b_slope * svg.get_rho() / sqrt(svg.get_rho_sq_c())   );
   out =  svg.precision_transformed() * svg.mer_sd_2()  * svg.get_rho_derivative() * (y-eta).dot(temp);
-  out +=  - 1.0 / 16.0 * svg.get_rho(); // rho prior
   out +=  (1.0 - exp(svg.Sigma(2))) / (exp(svg.Sigma(2)) + 1.0); // jacobian
 
   return(out);
@@ -33,7 +32,7 @@ double STAP_glmer::rho_del(SV_glmer& svg){
 double STAP_glmer::calculate_glmer_ll(SV_glmer& svg){
     
     double out = 0;
-    this->calculate_X_diff(svg.theta(0));
+    this->calculate_X_diff(svg.theta(0),svg.theta_t(0));
     this->calculate_glmer_eta(svg);
 
     out += - y.size() / 2.0 * log( M_PI * 2 * svg.sigma_sq_transformed() ); 
@@ -42,7 +41,7 @@ double STAP_glmer::calculate_glmer_ll(SV_glmer& svg){
     out += - svg.b.rows() * log(M_PI * 2);
 
     out += -.5 * svg.b.dot(svg.b);
-    if(svg.spc(5) == 2)
+    if(svg.spc(6) == 2)
       out += -.5 * svg.b_slope.dot(svg.b_slope) ;
 
     return(out);
@@ -81,9 +80,11 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
         Rcpp::Rcout << "bb prior " << out << std::endl;
 
     // theta ~ N(1,1) prior 
-    out +=  R::dlnorm(svg.theta_transformed()(0),1,1,TRUE);
+    out +=  R::dlnorm(svg.theta_transformed()(0),0,1,TRUE);
     if(diagnostics)
         Rcpp::Rcout << "theta prior " << out << std::endl;
+
+    out += R::dlnorm(svg.theta_t_transformed()(0),0,1,TRUE) + svg.theta_t(0) ;
 
     // sigma ~ C(0,5)
     out +=  R::dcauchy(svg.sigma_transformed(),0,5,TRUE);
@@ -96,7 +97,7 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
         Rcpp::Rcout << "theta jacobian adjustment " << out << std::endl;
 
     // exponential prior on sigma_b's  + jacobian
-    if(svg.spc(5) == 1){
+    if(svg.spc(6) == 1){
         out += R::dnorm(svg.mer_sd_1(),0,100,TRUE) + svg.Sigma(0);
         if(diagnostics)
             Rcpp::Rcout << "Sigma priors " << out << std::endl;
@@ -108,7 +109,6 @@ double STAP_glmer::calculate_glmer_energy(SV_glmer& svg){
         if(diagnostics)
             Rcpp::Rcout << "Sigma priors " << out << std::endl;
         // rho uniform prior and jacobian constraint
-        out += R::dnorm(svg.get_rho(),0,.25,TRUE);
         out += log_sigmoid_transform_derivative(svg.Sigma(2),-1,1);
         if(diagnostics)
             Rcpp::Rcout << "corr constraint " << out << std::endl;
@@ -151,7 +151,7 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     double theta = svg.theta(0);
     double theta_transformed = 10 / (1 + exp(- theta));
     double precision = svg.precision_transformed();
-    this->calculate_X_prime_diff(theta_transformed,theta); // also calculates X
+    this->calculate_X_prime_diff(theta_transformed,theta,svg.theta_t_transformed()(0)); // also calculates X
     this->calculate_glmer_eta(svg);
     Eigen::VectorXd e = y - eta;
 
@@ -166,17 +166,20 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.sigma_grad =  precision * (pow(e.array(),2) ).sum() - y.size();
 
     sgg.theta_grad = precision * (e.transpose() * (X_prime_diff * svg.beta + X_mean_prime * svg.beta_bar) ).transpose();
+
+    sg.theta_t_grad = precision * ((e).transpose() * (X_tprime_diff * svg.beta + X_mean_tprime * svg.beta_bar) ).transpose();
+
     sgg.b_grad = bdel(svg);
 
     sgg.subj_sig_grad = Eigen::VectorXd(svg.Sigma.rows());
     sgg.subj_sig_grad(0) = precision * svg.mer_sd_1() * e.dot( (subj_array.transpose() * svg.b));
-    sgg.subj_sig_grad(0) +=  -(log(svg.mer_sd_1()) -1) ; // log(sigma_1) ~ normal(1,1) prior and jacobian
+    sgg.subj_sig_grad(0) +=  -(log(svg.mer_sd_1()) -1.0) ; // log(sigma_1) ~ normal(1,1) prior and jacobian
     sgg.b_slope_grad = Eigen::VectorXd::Zero(svg.b_slope.rows());
 
     if(svg.Sigma.rows() == 3){
         sgg.b_slope_grad = bslope_del(svg);
         sgg.subj_sig_grad(1) =  precision * svg.mer_sd_2()  *   e.dot((W.transpose() * (svg.b * svg.get_rho() + svg.b_slope * sqrt(svg.get_rho_sq_c()) ) ));
-        sgg.subj_sig_grad(1) +=  - (log(svg.mer_sd_2())-1.0);
+        sgg.subj_sig_grad(1) +=  - (log(svg.mer_sd_2())-1.0); // switch back to log normal (1,1) 
         sgg.subj_sig_grad(2) = rho_del(svg);
     }
 
@@ -186,8 +189,9 @@ void STAP_glmer::calculate_gradient(SV_glmer& svg){
     sgg.beta_grad = sgg.beta_grad - 1.0 / 9.0 * svg.beta;
     sgg.beta_bar_grad = sgg.beta_bar_grad - 1.0 / 9.0 * svg.beta_bar;
     sgg.theta_grad(0) += - pow(theta_transformed,-1) * sigmoid_transform_derivative(svg.theta(0),0,10);
-    sgg.theta_grad(0) += - (log(theta_transformed) -1) * pow(theta_transformed,-1) * sigmoid_transform_derivative(svg.theta(0),0,10);
+    sgg.theta_grad(0) += - (log(theta_transformed)) * pow(theta_transformed,-1) * sigmoid_transform_derivative(svg.theta(0),0,10);
     sgg.theta_grad(0)  += log_sigmoid_transform_derivative(svg.theta(0),0,10); 
+    sg.theta_t_grad(0) += - (svg.theta_t(0));
     sgg.sigma_grad += - (2 * svg.sigma_transformed()) / (25 + svg.sigma_sq_transformed()) + 1;
 
     if(svg.spc(1) == 0 )

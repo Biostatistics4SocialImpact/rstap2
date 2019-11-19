@@ -86,8 +86,16 @@ class STAP_Tree
             return(svn.theta);
         }
 
+        Eigen::VectorXd get_theta_t_new() {
+            return(svn.theta_t);
+        }
+
         Eigen::VectorXd get_theta_new_transformed() {
             return(svn.theta_transformed());
+        }
+
+        Eigen::VectorXd get_theta_t_new_transformed() {
+            return(svn.theta_t_transformed());
         }
 
         const double get_sigma_new_transformed() {

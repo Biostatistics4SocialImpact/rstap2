@@ -44,6 +44,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                           Eigen::MatrixXd& Z,
                           const SEXP WW,
                           Eigen::ArrayXXd& distances,
+                          Eigen::ArrayXXd& times,
                           Eigen::ArrayXXi& u_crs,
                           SEXP subj_matrix_,
                           Eigen::MatrixXd& subj_n,
@@ -71,11 +72,12 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         Eigen::MatrixXd beta_bar_out(iter_max,stap_par_code(3)); 
         Eigen::VectorXd sigma_out(iter_max); 
         Eigen::VectorXd theta_out(iter_max);
+        Eigen::VectorXd theta_t_out(iter_max);
         Eigen::MatrixXd b1_out(iter_max,stap_par_code(4));
         Eigen::MatrixXd b2_out(iter_max,stap_par_code(4));
-        Eigen::MatrixXd cov_out(iter_max,stap_par_code(5) == 1 ? 1 : 4);
+        Eigen::MatrixXd cov_out(iter_max,stap_par_code(6) == 1 ? 1 : 4);
 
-        // fill objects with zer0s
+        // fill objects with zer06s
         alpha_out = Eigen::VectorXd::Zero(iter_max);
         b1_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(4));
         b2_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(4));
@@ -83,9 +85,10 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         beta_bar_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         beta_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         theta_out = Eigen::VectorXd::Zero(iter_max);
+        theta_t_out = Eigen::VectorXd::Zero(iter_max);
         sigma_out = Eigen::VectorXd::Zero(iter_max);
         loglik_out = Eigen::VectorXd::Zero(iter_max);
-        cov_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(5) == 1 ? 1 : 4 );
+        cov_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(6) == 1 ? 1 : 4 );
 
         // random number generator
         std::mt19937 rng;
@@ -118,7 +121,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
-        STAP_glmer stap_object(distances,u_crs,subj_matrix,subj_n,Z_std,W,y,diagnostics);
+        STAP_glmer stap_object(distances,u_crs, times, u_crs,subj_matrix,subj_n,Z_std,W,y,diagnostics);
         double epsilon = stap_object.FindReasonableEpsilon(sv,rng);
         double mu_beta = log(10*epsilon);
         
@@ -178,7 +181,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 }
                 j++;
                 if(j == max_treedepth ){
-                    if(iter_ix > warmup)
+                    if(diagnostics)
                       Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
@@ -207,6 +210,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 sv.beta_bar = tree.get_beta_bar_new();
                 sv.beta = tree.get_beta_new();
                 sv.theta = tree.get_theta_new();
+				sv.theta_t = tree.get_theta_t_new();
                 sv.sigma = tree.get_sigma_new();
                 sv.Sigma = tree.get_Sigma_new();
                 sv.b = tree.get_b_new();
@@ -218,9 +222,10 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                 beta_out.row(iter_ix-1) = tree.get_beta_new() * y_sd;
                 sigma_out(iter_ix-1) = exp(tree.get_sigma_new()) * y_sd ; 
                 theta_out.row(iter_ix-1) = tree.get_theta_new_transformed();
+                theta_t_out.row(iter_ix-1) = tree.get_theta_t_new_transformed();
                 b1_out.row(iter_ix-1) = sv.adjust_b() * y_sd;
                 b2_out.row(iter_ix-1) = sv.adjust_b_slope() * y_sd;
-                if(stap_par_code(5) == 1)
+                if(stap_par_code(6) == 1)
                     cov_out(iter_ix-1,0) = exp(tree.get_Sigma_new_transformed()(0,0));
                 else 
                     cov_out.row(iter_ix-1) = tree.get_Sigma_new_transformed();
@@ -240,6 +245,7 @@ Rcpp::List stapdnd_glmer(Eigen::VectorXd& y,
                               Rcpp::Named("b_int_samps") = b1_out,
                               Rcpp::Named("b_slope_samps") = b2_out,
                               Rcpp::Named("theta_samps") = theta_out,
+                              Rcpp::Named("theta_t_samps") = theta_t_out,
                               Rcpp::Named("sigma_samps") = sigma_out,
                               Rcpp::Named("Sigma_samps") = cov_out,
                               Rcpp::Named("treedepth") = treedepth,
@@ -261,6 +267,8 @@ Rcpp::List test_grads_glmer(Eigen::VectorXd& y,
                       Eigen::VectorXd& beta,
                       Eigen::ArrayXXd &distances,
                       Eigen::ArrayXXi &u_crs,
+		      Eigen::ArrayXXd &times,
+		      Eigen::ArrayXXi &u_tcrs,
                       SEXP subj_array_,
                       Eigen::MatrixXd &subj_n,
                       Eigen::VectorXd &par_grid,
@@ -274,7 +282,7 @@ Rcpp::List test_grads_glmer(Eigen::VectorXd& y,
         Eigen::VectorXd grad_grid(par_grid.size());
         grad_grid = Eigen::VectorXd::Zero(par_grid.size());
         Eigen::VectorXd energy_grid(par_grid.size());
-        STAP_glmer stap_object(distances,u_crs,subj_array,subj_n,Z,W,y,true);
+        STAP_glmer stap_object(distances,u_crs,times,u_tcrs, subj_array,subj_n,Z,W,y,true);
         SV_glmer sv(stap_par_code,rng,true);
         sv.alpha = R::runif(-2,2);
         sv.beta(0) = R::runif(-2,2);

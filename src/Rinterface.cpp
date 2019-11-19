@@ -14,12 +14,33 @@
 //
 // [[Rcpp::depends(RcppEigen)]]
 
-// //
+//' NUTS for STAP model assuming independence across observations, but allowing for difference in difference estimation
+//' @param y vector of continuous outcomes
+//' @param Z matrix of confounders 
+//' @param W matrix of group-level effect slope covariates should be num_subj x 600 
+//' @param distances array of distances
+//' @param u_crs  compressed row storage indices for distances
+//' @param subj_matrix_ N X n sparse matrix that has a 1 in element ij if subject i has an outcome in y (i+j) 
+//' @param subj_n  n x 1 matrix that has 1/n_i in element i1 for the ith subject
+//' @param stap_par_code detailed code for estimation set-up - see details
+//' @param adapt_delta tuning parameter for adaptation
+//' @param iter_max  maximum number of iterations
+//' @param max_treedepth  maximum number of branches to grow for NUTS
+//' @param warmup number of iterations for which to tune sampler
+//' @param seed seed to initialize random number generator
+//' @param diagnostics -for development use only
+//' @details 
+//' stap_par_code first element 0/1 indicator intercept estimate
+//' stap_par_code second element 0/p indicator for dimension of delta vector
+//' stap_par_code third element 0/q indicator for dimension of beta vector
+//' stap_par_code fourth element 0/k indicator for dimension of beta_bar vector
 // [[Rcpp::export]]
-Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
+Rcpp::List stap_diffndiff_stfit(Eigen::VectorXd& y,
                           Eigen::MatrixXd& Z,
                           Eigen::ArrayXXd& distances,
                           Eigen::ArrayXXi& u_crs,
+                          Eigen::ArrayXXd& times,
+                          Eigen::ArrayXXi& u_tcrs,
                           SEXP subj_array_,
                           Eigen::MatrixXd& subj_n,
                           Eigen::ArrayXi& stap_par_code,
@@ -44,12 +65,14 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         Eigen::MatrixXd beta_bar_out(iter_max,stap_par_code(3)); 
         Eigen::VectorXd sigma_out(iter_max); 
         Eigen::VectorXd theta_out(iter_max);
+        Eigen::VectorXd theta_t_out(iter_max);
         // fill objects with zer0s
         alpha_out = Eigen::VectorXd::Zero(iter_max);
-        delta_out = Eigen::VectorXd::Zero(iter_max);
+        delta_out = Eigen::MatrixXd::Zero(iter_max,Z.cols());
         beta_bar_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         beta_out = Eigen::MatrixXd::Zero(iter_max,stap_par_code(2));
         theta_out = Eigen::VectorXd::Zero(iter_max);
+        theta_t_out = Eigen::VectorXd::Zero(iter_max);
         sigma_out = Eigen::VectorXd::Zero(iter_max);
         loglik_out = Eigen::VectorXd::Zero(iter_max);
         // random number generator
@@ -65,8 +88,8 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         svr.copy_SV(sv);
 
 
-        double y_bar = y.mean();
-        double y_sd = sqrt((pow((y.array() - y_bar).array(),2)).sum() / y.rows()) ;
+        double y_bar = 0 ;
+        double y_sd = 1 ; 
         Eigen::VectorXd y_std = (y.array() - y_bar) / y_sd ; 
 
         int n ,s, j, vj;
@@ -78,20 +101,15 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
         double kappa = 0.75;
         double log_z;
         double UTI_one, UTI_two;
-        STAP stap_object(distances,u_crs,subj_array,subj_n,Z,y_std,diagnostics);
+        STAP stap_object(distances,u_crs,times,u_tcrs,subj_array,subj_n,Z,y_std,diagnostics);
         double epsilon = stap_object.FindReasonableEpsilon(sv,rng);
         double mu_beta = log(10*epsilon);
+		const int chain = 1;
         
         Rcpp::Rcout << "Beginning Sampling" << std::endl;
 
        for(int iter_ix = 1; iter_ix <= iter_max; iter_ix++){
-           if(diagnostics){
-                Rcpp::Rcout << "Beginning of iteration: " << iter_ix << std::endl;
-                Rcpp::Rcout << "-------------------------------------" << std::endl;
-           }else if(iter_ix % (int)round(.1 * iter_max) == 0 ){
-               std::string str = iter_ix <= warmup ? "\t [Warmup] " : "\t [Sampling]";
-                Rcpp::Rcout << "Beginning of iteration: " << iter_ix << " / " << iter_max << str  << std::endl;
-           }
+		   print_progress(iter_ix, warmup,iter_max, chain);
            sv.update_var_scheme(iter_ix);
            sv.initialize_momenta(rng);
            log_z = stap_object.sample_u(sv,rng);
@@ -132,8 +150,9 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 n = n + tree.get_n_prime();
                 s = (UTI_one && UTI_two) ? tree.get_s_prime() : 0;
                 j++;
-                if(j == max_treedepth){
-                    Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
+                if(j == max_treedepth ){
+					if(iter_ix>warmup)
+						Rcpp::Rcout << "Iteration: " << iter_ix << "Exceeded Max Treedepth: " << j << std::endl;
                     break;
                 }
                 epsilons(iter_ix-1) = epsilon;
@@ -160,6 +179,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 sv.beta_bar = tree.get_beta_bar_new();
                 sv.beta = tree.get_beta_new();
                 sv.theta = tree.get_theta_new();
+				sv.theta_t = tree.get_theta_t_new();
                 sv.sigma = tree.get_sigma_new();
                 loglik_out(iter_ix-1) = stap_object.calculate_ll(sv);
                 //adjust parameters 
@@ -168,6 +188,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                 beta_bar_out.row(iter_ix - 1) = sv.adjust_beta_bar(y_sd);
                 beta_out.row(iter_ix-1) = sv.adjust_beta(y_sd);
                 theta_out.row(iter_ix-1) = tree.get_theta_new_transformed();
+                theta_t_out.row(iter_ix-1) = tree.get_theta_t_new_transformed();
                 sigma_out(iter_ix-1) = sv.adjust_sigma(y_sd);
             }
             if((acceptance(iter_ix-1) == 0  && iter_ix > warmup) && diagnostics == false)
@@ -182,6 +203,7 @@ Rcpp::List stap_diffndiff(Eigen::VectorXd& y,
                               Rcpp::Named("beta_samps") =  beta_out,
                               Rcpp::Named("beta_bar_samps") = beta_bar_out,
                               Rcpp::Named("theta_samps") = theta_out,
+                              Rcpp::Named("theta_t_samps") = theta_t_out,
                               Rcpp::Named("sigma_samps") = sigma_out,
                               Rcpp::Named("treedepth") = treedepth,
                               Rcpp::Named("acceptance") = acceptance,
@@ -200,6 +222,8 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
                       Eigen::VectorXd& beta,
                       Eigen::ArrayXXd &distances,
                       Eigen::ArrayXXi &u_crs,
+		      Eigen::ArrayXXd &times,
+		      Eigen::ArrayXXi &u_tcrs,
                       SEXP subj_array_,
                       Eigen::MatrixXd &subj_n,
                       Eigen::VectorXd &par_grid,
@@ -209,7 +233,7 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         Eigen::MappedSparseMatrix<double> subj_array(Rcpp::as<Eigen::MappedSparseMatrix<double> >(subj_array_));
         std::mt19937 rng;
         rng = std::mt19937(seed);
-        STAP stap_object(distances,u_crs,subj_array,subj_n,Z,y,true);
+        STAP stap_object(distances,u_crs,times,u_tcrs,subj_array,subj_n,Z,y,true);
         Eigen::VectorXd grad_grid(par_grid.size());
         Eigen::VectorXd energy_grid(par_grid.size());
         SV sv(stap_par_code,rng,true);
@@ -223,14 +247,16 @@ Rcpp::List test_grads(Eigen::VectorXd& y,
         sv.bm = Eigen::VectorXd::Zero(1);
         sv.bbm =Eigen::VectorXd::Zero(1);
         sv.tm = Eigen::VectorXd::Zero(1);
+		sv.ttm = Eigen::VectorXd::Zero(1);
         sv.dm = Eigen::VectorXd::Zero(1);
-        sv.theta(0) = log(1.0 / 19.0);
+        sv.theta(0) = - 2.94; 
+		sv.theta_t(0) = log(5);
 
         for(int i = 0; i < par_grid.size(); i++){
-            sv.theta(0) = par_grid(i);
-            stap_object.calculate_gradient(sv);
-            grad_grid(i) = stap_object.sg.theta_grad(0);
+            sv.theta_t(0) = par_grid(i);
             energy_grid(i) = stap_object.calculate_total_energy(sv);
+            stap_object.calculate_gradient(sv);
+            grad_grid(i) = stap_object.sg.theta_t_grad(0);
         }
 
 
